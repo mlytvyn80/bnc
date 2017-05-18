@@ -1,0 +1,51 @@
+
+--------------------------------------------------------------------------------
+ BNC VERSION 2.12.3 (05.09.2016)
+--------------------------------------------------------------------------------
+
+    ADDED   (01.09.2016): number of allowed SSR biases is enlarged, some future
+                          GLONASS signal and tracking mode identifier are added
+    FIXED   (12.08.2016): check regarding wrong observation epochs is done during
+                          latency check as well to prevent erroneous latencies
+    ADDED   (08.08.2016): some informations about the data source is added as
+                          comment within the header of RINEX navigation files
+    CHANGED (28.07.2016): small adaptations in qwtpolar sources to allow a
+                          successful comilation of BNC on a Rasperry Pi
+    ADDED   (21.07.2016): frequency specific signal priorities are added for
+                          RINEX version 3 to RINEX version 2 conversion
+    CHANGED (21.07.2016): Default signal priority list
+    ADDED   (29.06.2016): consideration of provioder ID changes in SSR streams
+                          during PPP analysis
+    CHANGED (08.06.2016): weighting factor for GLONASS phase observations
+                          is now enlarged
+    FIXED   (08.06.2016): map generation from sourcetable entry
+    FIXED   (02.06.2016): the approach how to wait for clock corrections
+                          in PPP mode, which was well proven in BNC verson 2.11
+                          is re-implemented
+    FIXED   (30.05.2016): some NMEA components in PPP output are fixed:
+                          time stamp is now UTC, hDop value instead pDop value
+    CHANGED (27.05.2016): RINEX 2.11 ephemeris output for an unknown
+                          transmission time is set to 0.000000000000e+00
+    CHANGED (24.05.2016): the real satellite visibility is considered, if the
+                          expected observations are computed in RINEX QC
+
+--------------------------------------------------------------------------------
+ BNC VERSION 2.12.2 (18.05.2016)
+--------------------------------------------------------------------------------
+
+    ADDED   (18.05.2013): expected observations in RINEX QC
+    ADDED   (12.05.2016): limits for spherical harmonics/degree order extended
+    FIXED   (12.05.2016): wrong RINEX v2 header line excluded
+
+--------------------------------------------------------------------------------
+ BNC VERSION 2.12.1 (21.04.2016)
+--------------------------------------------------------------------------------
+
+    FIXED   (21.04.2016): RINEX v2 file naming for observation files
+    CHANGED (21.04.2016): release number is now part of BNC version
+
+--------------------------------------------------------------------------------
+ BNC VERSION 2.12.0 (19.04.2016)
+--------------------------------------------------------------------------------
+
+
