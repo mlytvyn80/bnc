@@ -64,7 +64,7 @@ t_dopPlot::t_dopPlot(QWidget* parent, const t_plotData& plotData)
 : QwtPlot(parent) {
 
   setCanvasBackground(QColor(Qt::white));
-  //canvas()->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
+  ((QwtPlotCanvas *)canvas())->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
 
   // Axes
   // ----

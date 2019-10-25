@@ -34,7 +34,7 @@
  *
  * Created:    16-Dec-2011
  *
- * Changes:    
+ * Changes:
  *
  * -----------------------------------------------------------------------*/
 
@@ -44,6 +44,7 @@
 #include "GPSDecoder.h"
 #include "bncsettings.h"
 #include "bncrinex.h"
+#include "bncutils.h"
 
 using namespace std;
 
@@ -62,30 +63,30 @@ GPSDecoder::~GPSDecoder() {
 // Initialize RINEX Writer
 //////////////////////////////////////////////////////////////////////////////
 void GPSDecoder::initRinex(const QByteArray& staID, const QUrl& mountPoint,
-                           const QByteArray& latitude, 
+                           const QByteArray& latitude,
                            const QByteArray& longitude, const QByteArray& nmea,
                            const QByteArray& ntripVersion) {
   if (_rnx) {
     return;
   }
   bncSettings settings;
-  if ( !settings.value("rnxPath").toString().isEmpty() ) { 
-    _rnx = new bncRinex(staID, mountPoint, latitude, longitude, 
+  if ( !settings.value("rnxPath").toString().isEmpty() ) {
+    _rnx = new bncRinex(staID, mountPoint, latitude, longitude,
                         nmea, ntripVersion);
   }
-} 
+}
 
 // Write RINEX Epoch
 //////////////////////////////////////////////////////////////////////////////
 void GPSDecoder::dumpRinexEpoch(const t_satObs& obs, const QByteArray& format) {
   if (_rnx) {
-    long iSec    = long(floor(obs._time.gpssec()+0.5));
-    if (_rnx->samplingRate() == 0 || iSec % _rnx->samplingRate() == 0) {
+    int sec = int(nint(obs._time.gpssec()*10));
+    if (sec % _rnx->samplingRate() == 0) {
       _rnx->deepCopy(obs);
     }
     _rnx->dumpEpoch(format, obs._time);
   }
-} 
+}
 
 // Set RINEX Reconnect Flag
 //////////////////////////////////////////////////////////////////////////////

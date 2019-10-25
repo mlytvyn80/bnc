@@ -25,14 +25,14 @@
 #ifndef GRAPHWIN_H
 #define GRAPHWIN_H
 
+#include <QByteArray>
 #include <QDialog>
-#include <QString>
-
+#include <QPrinter>
+#include <QPrintDialog>
 #include <qwt_color_map.h>
 #include <qwt_plot.h>
 
 class QwtScaleWidget;
-class QPushButton;
 
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -54,9 +54,9 @@ class t_graphWin : public QDialog {
  Q_OBJECT
 
  public:
-  t_graphWin(QWidget* parent, const QString& fileName, 
-             const QVector<QWidget*>& plots, const QByteArray* scaleTitle,
-             const QwtInterval* scaleInterval);
+  t_graphWin(QWidget* parent, const QString& fileName, const QVector<QWidget*>& plots,
+             bool specialLayout, const QByteArray* scaleTitle = 0,
+             const QwtInterval* scaleInterval = 0, const QVector<int>* rows = 0);
   ~t_graphWin();
 
   void savePNG(const QString& dirName, QByteArray ext);

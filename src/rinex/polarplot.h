@@ -50,8 +50,7 @@ class t_polarData: public QwtSeriesData<QwtPointPolar> {
   }
   virtual QwtPointPolar sample(size_t ii) const {
     const t_polarPoint* point = _data->at(ii);
-    QwtPointPolar qp(point->_az, point->_zen);
-    //qp._value = point->_value;
+    QwtPointPolar qp(point->_az, point->_zen);  qp.setRadius( point->_value );
     return qp;
   }
   virtual size_t size() const {return _size;}

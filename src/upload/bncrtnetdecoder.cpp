@@ -34,7 +34,7 @@
  *
  * Created:    28-Mar-2011
  *
- * Changes:    
+ * Changes:
  *
  * -----------------------------------------------------------------------*/
 
@@ -45,7 +45,7 @@
 using namespace std;
 
 // Constructor
-//////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////
 bncRtnetDecoder::bncRtnetDecoder() {
   bncSettings settings;
 
@@ -58,23 +58,24 @@ bncRtnetDecoder::bncRtnetDecoder() {
     if (hlp.size() > 6) {
       ++iRow;
       int  outPort = hlp[1].toInt();
-      bool CoM     = (hlp[5].toInt() == Qt::Checked);
+      bool CoM     = (hlp[7].toInt() == Qt::Checked);
       int PID = 0;
-      if (hlp.size() > 8) {
-        PID = hlp[8].toInt();
+      if (hlp.size() > 10) {
+        PID = hlp[10].toInt();
       }
       int SID = 0;
-      if (hlp.size() > 9) {
-        SID = hlp[9].toInt();
+      if (hlp.size() > 11) {
+        SID = hlp[11].toInt();
       }
       int IOD = 0;
-      if (hlp.size() > 10) {
-        IOD = hlp[10].toInt();
+      if (hlp.size() > 12) {
+        IOD = hlp[12].toInt();
       }
       bncRtnetUploadCaster* newCaster = new bncRtnetUploadCaster(
-                                                       hlp[2], hlp[0], outPort, 
-                                                       hlp[3], hlp[4], CoM,
-                                                       hlp[6], hlp[7], 
+                                                       hlp[2], hlp[0], outPort,
+                                                       hlp[3], hlp[4],
+                                                       hlp[5], hlp[6], CoM,
+                                                       hlp[8], hlp[9],
                                                        PID, SID, IOD, iRow);
       newCaster->start();
       _casters.push_back(newCaster);
@@ -83,7 +84,7 @@ bncRtnetDecoder::bncRtnetDecoder() {
 }
 
 // Destructor
-//////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////
 bncRtnetDecoder::~bncRtnetDecoder() {
   for (int ic = 0; ic < _casters.size(); ic++) {
     _casters[ic]->deleteSafely();
@@ -91,7 +92,7 @@ bncRtnetDecoder::~bncRtnetDecoder() {
 }
 
 // Decode Method
-//////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////
 t_irc bncRtnetDecoder::Decode(char* buffer, int bufLen, vector<string>& errmsg) {
   errmsg.clear();
   for (int ic = 0; ic < _casters.size(); ic++) {

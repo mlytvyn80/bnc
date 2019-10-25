@@ -11,20 +11,18 @@
  *
  * Created:    25-Apr-2008
  *
- * Changes:    
+ * Changes:
  *
  * -----------------------------------------------------------------------*/
 
 #include <iomanip>
 #include <sstream>
 #include <math.h>
-#include <newmat/newmat.h>
 
 #include "bncsp3.h"
 #include "bncutils.h"
 
 using namespace std;
-using namespace NEWMAT;
 
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
@@ -36,7 +34,7 @@ bncSP3::bncSP3(const QString& fileName) : bncoutf(QString(), QString(), 0) {
   _stream.open(fileName.toLatin1().data());
   if (!_stream.good()) {
     throw "t_sp3File: cannot open file " + fileName;
-  }  
+  }
 
   while (_stream.good()) {
     getline(_stream, _lastLine);
@@ -48,7 +46,7 @@ bncSP3::bncSP3(const QString& fileName) : bncoutf(QString(), QString(), 0) {
 
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
-bncSP3::bncSP3(const QString& sklFileName, const QString& intr, int sampl) 
+bncSP3::bncSP3(const QString& sklFileName, const QString& intr, int sampl)
   : bncoutf(sklFileName, intr, sampl) {
   _inpOut    = output;
   _currEpoch = 0;
@@ -64,8 +62,9 @@ bncSP3::~bncSP3() {
 
 // Write One Epoch
 ////////////////////////////////////////////////////////////////////////////
-t_irc bncSP3::write(int GPSweek, double GPSweeks, const QString& prn, 
-                    const NEWMAT::ColumnVector& xCoM, double sp3Clk) {
+t_irc bncSP3::write(int GPSweek, double GPSweeks, const QString& prn,
+                    const NEWMAT::ColumnVector& xCoM, double sp3Clk,
+                    const NEWMAT::ColumnVector& v, double sp3ClkRate) {
 
   if (reopen(GPSweek, GPSweeks) == success) {
 
@@ -81,7 +80,7 @@ t_irc bncSP3::write(int GPSweek, double GPSweeks, const QString& prn,
         }
       }
 
-      // Print the new epoch 
+      // Print the new epoch
       // -------------------
       _out << "*  " << epoTime.datestr(' ') << ' ' << epoTime.timestr(8, ' ') << endl;
 
@@ -89,11 +88,20 @@ t_irc bncSP3::write(int GPSweek, double GPSweeks, const QString& prn,
     }
 
     _out << "P" << prn.toLatin1().data()
-         << setw(14) << setprecision(6) << xCoM(1) / 1000.0
-         << setw(14) << setprecision(6) << xCoM(2) / 1000.0
-         << setw(14) << setprecision(6) << xCoM(3) / 1000.0
-         << setw(14) << setprecision(6) << sp3Clk * 1e6 << endl;
-    
+         << setw(14) << setprecision(6) << xCoM(1) / 1000.0 // [km]
+         << setw(14) << setprecision(6) << xCoM(2) / 1000.0 // [km]
+         << setw(14) << setprecision(6) << xCoM(3) / 1000.0 // [km]
+         << setw(14) << setprecision(6) << sp3Clk * 1e6     // microseconds
+         << endl;
+
+    if (sp3ClkRate) {
+      _out << "V" << prn.toLatin1().data()
+           << setw(14) << setprecision(6) << v(1) * 10.0      // [dm/s]
+           << setw(14) << setprecision(6) << v(2) * 10.0      // [dm/s]
+           << setw(14) << setprecision(6) << v(3) * 10.0      // [dm/s]
+           << setw(14) << setprecision(6) << sp3ClkRate * 1e2 // 10^⁻4 microseconds/sec
+           << endl;
+    }
     return success;
   }
   else {
@@ -121,7 +129,7 @@ void bncSP3::writeHeader(const QDateTime& datTim) {
   int    mjd;
   double dayfrac;
   mjdFromDateAndTime(datTim, mjd, dayfrac);
-  
+
   int numEpo = _numSec;
   if (_sampl > 0) {
     numEpo /= _sampl;
@@ -129,9 +137,9 @@ void bncSP3::writeHeader(const QDateTime& datTim) {
 
   _out << "#aP" << datTim.toString("yyyy MM dd hh mm").toLatin1().data()
        << setw(12) << setprecision(8) << sec
-       << " " << setw(7) << numEpo << " ORBIT IGS08 HLM  IGS" << endl;
+       << " " << setw(7) << numEpo << " ORBIT IGS14 HLM  IGS" << endl;
 
-  _out << "## " 
+  _out << "## "
        << setw(4)  << GPSWeek
        << setw(16) << setprecision(8) << GPSWeeks
        << setw(15) << setprecision(8) << double(_sampl)
@@ -187,7 +195,7 @@ const bncSP3::t_sp3Epoch* bncSP3::nextEpoch() {
 
     t_sp3Sat* sp3Sat = new t_sp3Sat();
     istringstream in(_lastLine.substr(1).c_str());
-    in >> sp3Sat->_prn >> sp3Sat->_xyz(1) >> sp3Sat->_xyz(2) >> sp3Sat->_xyz(3) >> sp3Sat->_clk; 
+    in >> sp3Sat->_prn >> sp3Sat->_xyz(1) >> sp3Sat->_xyz(2) >> sp3Sat->_xyz(3) >> sp3Sat->_clk;
 
     if (sp3Sat->_xyz.NormFrobenius() == 0.0) {
       delete sp3Sat;

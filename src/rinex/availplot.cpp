@@ -42,7 +42,6 @@
 #include <qwt_text.h>
 #include <qwt_legend.h>
 #include <qwt_plot_canvas.h>
-#include <qwt_symbol.h>
 
 #include "availplot.h"
 #include "reqcanalyze.h"
@@ -75,7 +74,7 @@ t_availPlot::t_availPlot(QWidget* parent, const QMap<t_prn, t_plotData>& plotDat
 QwtPlot(parent) {
 
   setCanvasBackground(QColor(Qt::white));
-  //canvas()->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
+  ((QwtPlotCanvas *)canvas())->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
 
   // Axes
   // ----
@@ -124,60 +123,41 @@ QwtPlot(parent) {
 
     scaleDrawPrn->_yLabels[iC] = prn;
 
-    double eps = 0.1;
+    double eps = -0.1;
 
-    // L1 ok Curve
-    // -----------
-    if (plotData._L1ok.size()) {
-      const QVector<double>& xData = plotData._L1ok;
-      QVector<double>        yData(xData.size(), double(iC)+eps);
-      QwtPlotCurve* curve = addCurve(prn, symbGreen, xData, yData);
-      curve->setItemAttribute(QwtPlotItem::Legend, false);
-    }
+    for (QMap<char, t_plotData::t_hlpStatus >::const_iterator it = plotData._status.begin();
+      it != plotData._status.end(); it++) {
 
-    // L2 ok Curve
-    // -----------
-    if (plotData._L2ok.size()) {
-      const QVector<double>& xData = plotData._L2ok;
-      QVector<double>        yData(xData.size(), double(iC)-eps);
-      QwtPlotCurve* curve = addCurve(prn, symbGreen, xData, yData);
-      curve->setItemAttribute(QwtPlotItem::Legend, false);
-    }
+      const t_plotData::t_hlpStatus& status = it.value();
 
-    // L1 gaps Curve
-    // -------------
-    if (plotData._L1gap.size()) {
-      const QVector<double>& xData = plotData._L1gap;
-      QVector<double>        yData(xData.size(), double(iC)+eps);
-      QwtPlotCurve* curve = addCurve(prn, symbBlue, xData, yData);
-      curve->setItemAttribute(QwtPlotItem::Legend, false);
-    }
+      // OK Curve
+      // --------
+      if (status._ok.size()) {
+        const QVector<double>& xData = status._ok;
+        QVector<double>        yData(xData.size(), double(iC)+eps);
+        QwtPlotCurve* curve = addCurve(prn, symbGreen, xData, yData);
+        curve->setItemAttribute(QwtPlotItem::Legend, false);
+      }
+  
+      // Gaps Curve
+      // ----------
+      if (status._gap.size()) {
+        const QVector<double>& xData = status._gap;
+        QVector<double>        yData(xData.size(), double(iC)+eps);
+        QwtPlotCurve* curve = addCurve(prn, symbBlue, xData, yData);
+        curve->setItemAttribute(QwtPlotItem::Legend, false);
+      }
+  
+      // Slips Curve
+      // -----------
+      if (status._slip.size()) {
+        const QVector<double>& xData = status._slip;
+        QVector<double>        yData(xData.size(), double(iC)+eps);
+        QwtPlotCurve* curve = addCurve(prn, symbRed, xData, yData);
+        curve->setItemAttribute(QwtPlotItem::Legend, false);
+      }
 
-    // L2 gaps Curve
-    // -------------
-    if (plotData._L2gap.size()) {
-      const QVector<double>& xData = plotData._L2gap;
-      QVector<double>        yData(xData.size(), double(iC)-eps);
-      QwtPlotCurve* curve = addCurve(prn, symbBlue, xData, yData);
-      curve->setItemAttribute(QwtPlotItem::Legend, false);
-    }
-
-    // L1 slips Curve
-    // --------------
-    if (plotData._L1slip.size()) {
-      const QVector<double>& xData = plotData._L1slip;
-      QVector<double>        yData(xData.size(), double(iC)+eps);
-      QwtPlotCurve* curve = addCurve(prn, symbRed, xData, yData);
-      curve->setItemAttribute(QwtPlotItem::Legend, false);
-    }
-
-    // L2 slips Curve
-    // --------------
-    if (plotData._L2slip.size()) {
-      const QVector<double>& xData = plotData._L2slip;
-      QVector<double>        yData(xData.size(), double(iC)-eps);
-      QwtPlotCurve* curve = addCurve(prn, symbRed, xData, yData);
-      curve->setItemAttribute(QwtPlotItem::Legend, false);
+      eps += 0.2;
     }
   }
   
@@ -203,7 +183,11 @@ QwtPlotCurve* t_availPlot::addCurve(const QString& name,
                                     const QVector<double>& xData,
                                     const QVector<double>& yData) {
   QwtPlotCurve* curve = new QwtPlotCurve(name);
-  curve->setSymbol(new QwtSymbol(symbol.style()));
+  QwtSymbol *s = new QwtSymbol(symbol.style());
+  s->setSize(symbol.size());
+  s->setBrush(symbol.brush());
+  s->setPen(symbol.pen());
+  curve->setSymbol(s);
   curve->setStyle(QwtPlotCurve::NoCurve);
   curve->setXAxis(QwtPlot::xBottom);
   curve->setYAxis(QwtPlot::yLeft);

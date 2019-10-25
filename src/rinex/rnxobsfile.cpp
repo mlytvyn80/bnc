@@ -22,7 +22,21 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
-
+/* -------------------------------------------------------------------------
+ * BKG NTRIP Client
+ * -------------------------------------------------------------------------
+ *
+ * Class:      t_rnxObsFile
+ *
+ * Purpose:    Reads RINEX Observation File
+ *
+ * Author:     L. Mervart
+ *
+ * Created:    24-Jan-2012
+ *
+ * Changes:
+ *
+ * -----------------------------------------------------------------------*/
 
 #include <iostream>
 #include <iomanip>
@@ -37,7 +51,7 @@ using namespace std;
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
 t_rnxObsHeader::t_rnxObsHeader() {
-  _usedSystems = "GREJCS";
+  _usedSystems = "GREJCSI";
   _antNEU.ReSize(3); _antNEU = 0.0;
   _antXYZ.ReSize(3); _antXYZ = 0.0;
   _antBSG.ReSize(3); _antBSG = 0.0;
@@ -151,7 +165,7 @@ t_irc t_rnxObsHeader::read(QTextStream* stream, int maxLines) {
     }
     else if (key == "# / TYPES OF OBSERV") {
       if (_version == 0.0) {
-        _version = t_rnxObsHeader::defaultRnxObsVersion2;
+        _version = defaultRnxObsVersion2;
       }
       QTextStream* in = new QTextStream(value.toLatin1(), QIODevice::ReadOnly);
       int nTypes;
@@ -175,7 +189,7 @@ t_irc t_rnxObsHeader::read(QTextStream* stream, int maxLines) {
     }
     else if (key == "SYS / # / OBS TYPES") {
       if (_version == 0.0) {
-        _version = t_rnxObsHeader::defaultRnxObsVersion3;
+        _version = defaultRnxObsVersion3;
       }
       QTextStream* in = new QTextStream(value.toLatin1(), QIODevice::ReadOnly);
       char sys;
@@ -292,10 +306,10 @@ void t_rnxObsHeader::setDefault(const QString& markerName, int version) {
   _markerName = markerName;
 
   if (version <= 2) {
-    _version = t_rnxObsHeader::defaultRnxObsVersion2;
+    _version = defaultRnxObsVersion2;
   }
   else {
-    _version = t_rnxObsHeader::defaultRnxObsVersion3;
+    _version = defaultRnxObsVersion3;
   }
 
   _comments << "Default set of observation types used";
@@ -319,31 +333,50 @@ void t_rnxObsHeader::setDefault(const QString& markerName, int version) {
                    << "C5X" << "L5X"  << "S5X";
 
     _obsTypes['J'] << "C1C" << "L1C"  << "S1C"
-                   << "C1S" << "L1S"  << "S1S"
-                   << "C1L" << "L1L"  << "S1L"
+                   << "C1Z" << "L1Z"  << "S1Z"
                    << "C1X" << "L1X"  << "S1X"
-                   << "C2S" << "L2S"  << "S2S"
                    << "C2L" << "L2L"  << "S2L"
                    << "C2X" << "L2X"  << "S2X"
-                   << "C5X" << "L5X"  << "S5X";
+                   << "C5Q" << "L5Q"  << "S5Q"
+                   << "C5X" << "L5X"  << "S5X"
+                   << "C6L" << "L6L"  << "S6L";
 
     _obsTypes['R'] << "C1C" << "L1C" << "S1C"
                    << "C1P" << "L1P" << "S1P"
                    << "C2C" << "L2C" << "S2C"
-                   << "C2P" << "L2P" << "S2P";
+                   << "C2P" << "L2P" << "S2P"
+                   << "C3I" << "L3I" << "S3I"
+                   << "C4X" << "L4X" << "S4X"
+                   << "C6X" << "L6X" << "S6X";
 
-    _obsTypes['E'] << "C1X" << "L1X" << "S1X"
+    _obsTypes['E'] << "C1C" << "L1C" << "S1C"
+                   << "C1X" << "L1X" << "S1X"
+                   << "C5Q" << "L5Q" << "S5Q"
                    << "C5X" << "L5X" << "S5X"
+                   << "C6C" << "L6C" << "S6C"
+                   << "C6X" << "L6X" << "S6X"
+                   << "C7Q" << "L7Q" << "S7Q"
                    << "C7X" << "L7X" << "S7X"
+                   << "C8Q" << "L8Q" << "S8Q"
                    << "C8X" << "L8X" << "S8X";
 
     _obsTypes['S'] << "C1C" << "L1C" << "S1C"
                    << "C5I" << "L5I" << "S5I"
-                   << "C5Q" << "L5Q" << "S5Q";
+                   << "C5Q" << "L5Q" << "S5Q"
+                   << "C5X" << "L5X" << "S5X";
 
     _obsTypes['C'] << "C2I" << "L2I" << "S2I"
+                   << "C2Q" << "L2Q" << "S2Q"
+                   << "C2X" << "L2X" << "S2X"
                    << "C6I" << "L6I" << "S6I"
-                   << "C7I" << "L7I" << "S7I";
+                   << "C6Q" << "L6Q" << "S6Q"
+                   << "C6X" << "L6X" << "S6X"
+                   << "C7I" << "L7I" << "S7I"
+                   << "C7Q" << "L7Q" << "S7Q"
+                   << "C7X" << "L7X" << "S7X";
+
+    _obsTypes['I'] << "C5A" << "L5A" << "S5A"
+                   << "C9A" << "L9A" << "S9A";
   }
 }
 
@@ -356,10 +389,10 @@ void t_rnxObsHeader::set(const t_rnxObsHeader& header, int version,
                          const QStringList* gloSlots) {
 
   if (version <= 2) {
-    _version = t_rnxObsHeader::defaultRnxObsVersion2;
+    _version = defaultRnxObsVersion2;
   }
   else {
-    _version = t_rnxObsHeader::defaultRnxObsVersion3;
+    _version = defaultRnxObsVersion3;
   }
   _interval        = header._interval;
   _antennaNumber   = header._antennaNumber;
@@ -390,20 +423,48 @@ void t_rnxObsHeader::set(const t_rnxObsHeader& header, int version,
   // ---------------------
   _obsTypes.clear();
   if (!useObsTypes || useObsTypes->size() == 0) {
-    if      (int(_version) == int(header._version)) {
+    if (int(_version) == int(header._version)) {
       _obsTypes = header._obsTypes;
     }
     else {
       if (_version >= 3.0) {
-        for (int iSys = 0; iSys < header.numSys(); iSys++) {
-          char sys = header.system(iSys);
-          for (int iType = 0; iType < header.nTypes(sys); iType++) {
-            QString type = header.obsType(sys, iType, _version);
-            if (!_obsTypes[sys].contains(type)) {
-              _obsTypes[sys].push_back(type);
-            }
-          }
-        }
+        _comments << "Default set of observation types used";
+        _comments.removeDuplicates();
+        _obsTypes['G'] << "C1C" << "L1C"  << "S1C"
+                       << "C1W" << "L1W"  << "S1W"
+                       << "C2X" << "L2X"  << "S2X"
+                       << "C2W" << "L2W"  << "S2W"
+                       << "C5X" << "L5X"  << "S5X";
+
+        _obsTypes['J'] << "C1C" << "L1C"  << "S1C"
+                       << "C1S" << "L1S"  << "S1S"
+                       << "C1L" << "L1L"  << "S1L"
+                       << "C1X" << "L1X"  << "S1X"
+                       << "C2S" << "L2S"  << "S2S"
+                       << "C2L" << "L2L"  << "S2L"
+                       << "C2X" << "L2X"  << "S2X"
+                       << "C5X" << "L5X"  << "S5X";
+
+        _obsTypes['R'] << "C1C" << "L1C" << "S1C"
+                       << "C1P" << "L1P" << "S1P"
+                       << "C2C" << "L2C" << "S2C"
+                       << "C2P" << "L2P" << "S2P";
+
+        _obsTypes['E'] << "C1X" << "L1X" << "S1X"
+                       << "C5X" << "L5X" << "S5X"
+                       << "C7X" << "L7X" << "S7X"
+                       << "C8X" << "L8X" << "S8X";
+
+        _obsTypes['S'] << "C1C" << "L1C" << "S1C"
+                       << "C5I" << "L5I" << "S5I"
+                       << "C5Q" << "L5Q" << "S5Q";
+
+        _obsTypes['C'] << "C2I" << "L2I" << "S2I"
+                       << "C6I" << "L6I" << "S6I"
+                       << "C7I" << "L7I" << "S7I";
+
+        _obsTypes['I'] << "C5A" << "L5A" << "S5A"
+                       << "C9A" << "L9A" << "S9A";
       }
       else {
         for (int iSys = 0; iSys < header.numSys(); iSys++) {
@@ -475,6 +536,8 @@ void t_rnxObsHeader::set(const t_rnxObsHeader& header, int version,
         QString type = hlp.first();
         double shift = hlp1.first().toDouble();
         hlp1.removeFirst();
+        QString satStr = hlp1.join(" ");
+        hlp1 = satStr.split(" ");
         QStringList &satList = hlp1;
         QMap<QString, QPair<double, QStringList> >::iterator it = _phaseShifts.find(type);
         if ( it != _phaseShifts.end()) {
@@ -557,11 +620,15 @@ void t_rnxObsHeader::write(QTextStream* stream,
   while (itCmnt.hasNext()) {
     *stream << itCmnt.next().trimmed().left(60).leftJustified(60) << "COMMENT\n";
   }
-
+  QString markerName = _markerName.left(9);
+  if (_version < 3.0) {
+    markerName = _markerName.left(4);
+  }
   *stream << QString("%1")
-    .arg(_markerName, -60)
+    .arg(markerName, -60)
     .leftJustified(60)
            << "MARKER NAME\n";
+
 
   if (!_markerNumber.isEmpty()) {
     *stream << QString("%1")
@@ -1247,9 +1314,17 @@ void t_rnxObsFile::writeEpoch(const t_rnxEpo* epo) {
   for (unsigned ii = 0; ii < epo->rnxSat.size(); ii++) {
     const t_rnxSat& rnxSat = epo->rnxSat[ii];
     if (_header._obsTypes[rnxSat.prn.system()].size() > 0) {
+      if (_header.version() < 3.0) { // exclude new GNSS such as BDS, QZSS, IRNSS, etc.
+          if (rnxSat.prn.system() != 'G' && rnxSat.prn.system() != 'R' &&
+              rnxSat.prn.system() != 'E' && rnxSat.prn.system() != 'S' &&
+              rnxSat.prn.system() != 'I') {
+            continue;
+          }
+      }
       epoLocal.rnxSat.push_back(rnxSat);
     }
   }
+  std::stable_sort(epoLocal.rnxSat.begin(), epoLocal.rnxSat.end(), t_rnxSat::prnSort);
 
   if (version() < 3.0) {
     return writeEpochV2(_stream, _header, &epoLocal);
@@ -1258,6 +1333,7 @@ void t_rnxObsFile::writeEpoch(const t_rnxEpo* epo) {
     return writeEpochV3(_stream, _header, &epoLocal);
   }
 }
+
 // Write Data Epoch (RINEX Version 2)
 ////////////////////////////////////////////////////////////////////////////
 void t_rnxObsFile::writeEpochV2(QTextStream* stream, const t_rnxObsHeader& header,
@@ -1270,12 +1346,12 @@ void t_rnxObsFile::writeEpochV2(QTextStream* stream, const t_rnxObsHeader& heade
 
   QString dateStr;
   QTextStream(&dateStr) << QString(" %1 %2 %3 %4 %5%6")
-    .arg(int(fmod(year, 100)), 2, 10, QChar('0'))
-    .arg(month,                2, 10, QChar('0'))
-    .arg(day,                  2, 10, QChar('0'))
-    .arg(hour,                 2, 10, QChar('0'))
-    .arg(min,                  2, 10, QChar('0'))
-    .arg(sec,                 11, 'f', 7);
+    .arg(int(fmod(double(year), 100.0)), 2, 10, QChar('0'))
+    .arg(month,                          2, 10, QChar('0'))
+    .arg(day,                            2, 10, QChar('0'))
+    .arg(hour,                           2, 10, QChar('0'))
+    .arg(min,                            2, 10, QChar('0'))
+    .arg(sec,                           11, 'f', 7);
 
   int flag = 0;
   *stream << dateStr << QString("%1%2").arg(flag, 3).arg(epo->rnxSat.size(), 3);
@@ -1352,7 +1428,6 @@ void t_rnxObsFile::writeEpochV2(QTextStream* stream, const t_rnxObsHeader& heade
     *stream << endl;
   }
 }
-
 
 // Write Data Epoch (RINEX Version 3)
 ////////////////////////////////////////////////////////////////////////////

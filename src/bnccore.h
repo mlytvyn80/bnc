@@ -25,8 +25,6 @@
 #ifndef BNCAPP_H
 #define BNCAPP_H
 
-#include <QtGui>
-
 #include "bnctime.h"
 #include "bnccaster.h"
 #include "bncrawfile.h"
@@ -70,9 +68,10 @@ friend class bncSettings;
   bool             GUIenabled() const {return _GUIenabled;}
   void             startPPP();
   void             stopPPP();
-  int              sigintReceived;  
+  int              sigintReceived;
 
   QMap<int, bncTableItem*> _uploadTableItems;
+  QMap<int, bncTableItem*> _uploadEphTableItems;
 
  public slots:
   void slotMessage(QByteArray msg, bool showOnScreen);

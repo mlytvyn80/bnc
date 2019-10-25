@@ -26,11 +26,15 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////
 bncUploadCaster::bncUploadCaster(const QString& mountpoint,
                                  const QString& outHost, int outPort,
-                                 const QString& password, int iRow,
+                                 const QString& ntripVersion,
+                                 const QString& userName, const QString& password,
+                                 int iRow,
                                  int rate) {
   _mountpoint    = mountpoint;
   _outHost       = outHost;
   _outPort       = outPort;
+  _ntripVersion  = ntripVersion;
+  _userName      = userName;
   _password      = password;
   _outSocket     = 0;
   _sOpenTrial    = 0;
@@ -50,6 +54,11 @@ bncUploadCaster::bncUploadCaster(const QString& mountpoint,
   if (BNC_CORE->_uploadTableItems.find(_iRow) != BNC_CORE->_uploadTableItems.end()){
     connect(this, SIGNAL(newBytes(QByteArray,double)),
             BNC_CORE->_uploadTableItems.value(iRow),
+            SLOT(slotNewBytes(const QByteArray,double)));
+  }
+  if (BNC_CORE->_uploadEphTableItems.find(_iRow) != BNC_CORE->_uploadEphTableItems.end()){
+    connect(this, SIGNAL(newBytes(QByteArray,double)),
+            BNC_CORE->_uploadEphTableItems.value(iRow),
             SLOT(slotNewBytes(const QByteArray,double)));
   }
 }
@@ -133,13 +142,15 @@ void bncUploadCaster::open() {
   }
 
   _outSocket = new QTcpSocket();
+  _outSocket->setProxy(QNetworkProxy::NoProxy); // Ntrip1: to prevet the usage of system entries
   _outSocket->connectToHost(_outHost, _outPort);
 
   const int timeOut = 5000;  // 5 seconds
   if (!_outSocket->waitForConnected(timeOut)) {
+    emit(newMessage("Broadcaster: Connect timeout for " + _mountpoint.toLatin1()
+         + "(" + _outHost.toLatin1() + "), " + _outSocket->errorString().toLatin1(), true));
     delete _outSocket;
     _outSocket = 0;
-    emit(newMessage("Broadcaster: Connect timeout", true));
     return;
   }
 
@@ -156,10 +167,10 @@ void bncUploadCaster::open() {
   if (ans.indexOf("OK") == -1) {
     delete _outSocket;
     _outSocket = 0;
-    emit(newMessage("Broadcaster: Connection broken", true));
+    emit(newMessage("Broadcaster: Connection broken for " + _mountpoint.toLatin1(), true));
   }
   else {
-    emit(newMessage("Broadcaster: Connection opened", true));
+    emit(newMessage("Broadcaster: Connection opened for " + _mountpoint.toLatin1(), true));
     _sOpenTrial = 0;
   }
 }

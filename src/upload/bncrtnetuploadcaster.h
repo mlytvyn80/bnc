@@ -19,8 +19,9 @@ class bncRtnetUploadCaster : public bncUploadCaster {
  public:
   bncRtnetUploadCaster(const QString& mountpoint,
                   const QString& outHost, int outPort,
-                  const QString& password, 
-                  const QString& crdTrafo, bool  CoM, 
+                  const QString& ntripVersion,
+                  const QString& userName,const QString& password,
+                  const QString& crdTrafo, bool  CoM,
                   const QString& sp3FileName,
                   const QString& rnxFileName,
                   int PID, int SID, int IOD, int iRow);
@@ -28,12 +29,14 @@ class bncRtnetUploadCaster : public bncUploadCaster {
  protected:
   virtual ~bncRtnetUploadCaster();
  private:
-  void processSatellite(const t_eph* eph, int GPSweek, 
-                        double GPSweeks, const QString& prn, 
+  t_irc processSatellite(const t_eph* eph, int GPSweek,
+                        double GPSweeks, const QString& prn,
                         const NEWMAT::ColumnVector& rtnAPC,
-                        double rtnClk,
+                        double ura,
+                        const NEWMAT::ColumnVector& rtnClk,
                         const NEWMAT::ColumnVector& rtnVel,
                         const NEWMAT::ColumnVector& rtnCoM,
+                        const NEWMAT::ColumnVector& rtnClkSig,
                         struct ClockOrbit::SatData* sd,
                         QString& outLine);
   void crdTrafo(int GPSWeek, NEWMAT::ColumnVector& xyz, double& dc);

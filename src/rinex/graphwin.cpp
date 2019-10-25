@@ -22,21 +22,30 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
-
+/* -------------------------------------------------------------------------
+ * BKG NTRIP Client
+ * -------------------------------------------------------------------------
+ *
+ * Class:      t_graphWin
+ *
+ * Purpose:    Window for plots
+ *
+ * Author:     L. Mervart
+ *
+ * Created:    23-Jun-2012
+ *
+ * Changes:
+ *
+ * -----------------------------------------------------------------------*/
 
 #include <qwt_scale_widget.h>
 #include <qwt_scale_engine.h>
 
-#include <QByteArray>
-#include <QPushButton>
+#include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
-#include <QDir>
-#include <QtPrintSupport/QPrintDialog>
-#include <QtPrintSupport/QPrinter>
-#include <QPainter>
-#include <QFileInfo>
-
+#include <QPushButton>
 
 #include "graphwin.h"
 #include "bncsettings.h"
@@ -45,10 +54,10 @@ using namespace std;
 
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
-t_graphWin::t_graphWin(QWidget* parent, const QString& fileName, 
-                       const QVector<QWidget*>& plots,
-                       const QByteArray* scaleTitle,
-                       const QwtInterval* scaleInterval) :  QDialog(parent) {
+t_graphWin::t_graphWin(QWidget* parent, const QString& fileName, const QVector<QWidget*>& plots,
+                       bool specialLayout, const QByteArray* scaleTitle,
+                       const QwtInterval* scaleInterval,
+                       const QVector<int>* rows) : QDialog(parent) {
 
   _fileName = fileName;
 
@@ -57,7 +66,6 @@ t_graphWin::t_graphWin(QWidget* parent, const QString& fileName,
   setWindowTitle(_fileName);
 
   int ww = QFontMetrics(font()).width('w');
-  setMinimumSize(plots.size()*40*ww, 40*ww);
 
   // Buttons
   // -------
@@ -75,22 +83,20 @@ t_graphWin::t_graphWin(QWidget* parent, const QString& fileName,
     _colorScale = new QwtScaleWidget( this );
     _colorScale->setAlignment( QwtScaleDraw::RightScale );
     _colorScale->setColorBarEnabled( true );
-    
+
      QwtText title(*scaleTitle);
      QFont font = _colorScale->font();
      font.setBold( true );
      title.setFont( font );
      _colorScale->setTitle( title );
-    
+
      _colorScale->setColorMap(*scaleInterval, new t_colorMap());
-    
+
      QwtLinearScaleEngine scaleEngine;
-     /*
-     _colorScale->setScaleDiv(scaleEngine.transformation(),
-                              scaleEngine.divideScale(scaleInterval->minValue(),
+     _colorScale->setTransformation(scaleEngine.transformation());
+     _colorScale->setScaleDiv(scaleEngine.divideScale(scaleInterval->minValue(),
                                                       scaleInterval->maxValue(),
                                                       8, 5));
-                                                      */
   }
   else {
     _colorScale = 0;
@@ -99,22 +105,33 @@ t_graphWin::t_graphWin(QWidget* parent, const QString& fileName,
   // Layout
   // ------
   _canvas = new QWidget(this);
-  if (plots.size() != 3) {
-    QHBoxLayout* plotLayout = new QHBoxLayout(_canvas);
-    for (int ip = 0; ip < plots.size(); ip++) {
-      plotLayout->addWidget(plots[ip]);
-    }
-    if (_colorScale) {
-      plotLayout->addWidget(_colorScale);
-    }
-  }
-  else {
+  if (specialLayout) {
     QHBoxLayout* plotLayout = new QHBoxLayout(_canvas);
     plotLayout->addWidget(plots[0]);
     QVBoxLayout* hlpLayout = new QVBoxLayout;
     hlpLayout->addWidget(plots[1]);
     hlpLayout->addWidget(plots[2]);
     plotLayout->addLayout(hlpLayout);
+  }
+  else {
+    int iRow = -1;
+    QVBoxLayout* plotLayout = new QVBoxLayout(_canvas);
+    QHBoxLayout* rowLayout  = new QHBoxLayout();
+    for (int ip = 0; ip < plots.size(); ip++) {
+      if (rows) {
+        if (iRow != -1 && iRow != rows->at(ip)) {
+          plotLayout->addLayout(rowLayout);
+          rowLayout = new QHBoxLayout();
+        }
+        iRow = rows->at(ip);
+      }
+      plots[ip]->setMinimumSize(30*ww, 30*ww);
+      rowLayout->addWidget(plots[ip]);
+    }
+    if (_colorScale) {
+      rowLayout->addWidget(_colorScale);
+    }
+    plotLayout->addLayout(rowLayout);
   }
 
   QHBoxLayout* buttonLayout = new QHBoxLayout;

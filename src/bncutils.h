@@ -49,7 +49,7 @@ int          gnumleap(int year, int month, int day);
  * Convert Moscow time into GPS or UTC. Note that parts of a second are not preserved
  * and must be handled separately.
  * @param week GPS week number (must be prefilled, contains fixed value afterwards)
- * @param secOfWeek seconds in GPS week (must be prefilled, contains fixed value afterwards) 
+ * @param secOfWeek seconds in GPS week (must be prefilled, contains fixed value afterwards)
  * @param mSecOfWeek milli seconds in GLONASS time
  * @param fixnumleap when <code>true</code> then result is UTC time, otherwise it is GPS
  * @return does not return a value, but updates first two arguments
@@ -75,7 +75,7 @@ void         XYZ_to_RSW(const NEWMAT::ColumnVector& rr, const NEWMAT::ColumnVect
 
 t_irc        xyz2ell(const double* XYZ, double* Ell);
 
-t_irc        xyz2ell(const NEWMAT::ColumnVector &XYZ, NEWMAT::ColumnVector &Ell);
+t_irc xyz2ell(const NEWMAT::ColumnVector &XYZ, NEWMAT::ColumnVector &Ell);
 
 t_irc        xyz2geoc(const double* XYZ, double* Geoc);
 
@@ -83,17 +83,17 @@ t_irc        xyz2geoc(const NEWMAT::ColumnVector &XYZ, NEWMAT::ColumnVector &Geo
 
 void         xyz2neu(const double* Ell, const double* xyz, double* neu);
 
-void         xyz2neu(const NEWMAT::ColumnVector &Ell, const NEWMAT::ColumnVector &xyz, NEWMAT::ColumnVector &neu);
+void xyz2neu(const NEWMAT::ColumnVector &Ell, const NEWMAT::ColumnVector &xyz, NEWMAT::ColumnVector &neu);
 
 void         neu2xyz(const double* Ell, const double* neu, double* xyz);
 
-void         neu2xyz(const NEWMAT::ColumnVector &Ell, const NEWMAT::ColumnVector &neu, NEWMAT::ColumnVector &xyz);
+void  neu2xyz(const NEWMAT::ColumnVector &Ell, const NEWMAT::ColumnVector &neu, NEWMAT::ColumnVector &xyz);
 
 void         jacobiXYZ_NEU(const double* Ell, NEWMAT::Matrix& jacobi);
 
 void         jacobiEll_XYZ(const double* Ell, NEWMAT::Matrix& jacobi);
 
-void         covariXYZ_NEU(const NEWMAT::SymmetricMatrix& Qxyz, const double* Ell,
+void         covariXYZ_NEU(const NEWMAT::SymmetricMatrix &Qxyz, const double* Ell,
                            NEWMAT::SymmetricMatrix& Qneu);
 
 void         covariNEU_XYZ(const NEWMAT::SymmetricMatrix& Qneu, const double* Ell,
@@ -110,7 +110,7 @@ NEWMAT::ColumnVector rungeKutta4(double xi, const NEWMAT::ColumnVector& yi, doub
 
 void         GPSweekFromDateAndTime(const QDateTime& dateTime, int& GPSWeek, double& GPSWeeks);
 
-void         GPSweekFromYMDhms(int year, int month, int day, int hour, int min, double sec, 
+void         GPSweekFromYMDhms(int year, int month, int day, int hour, int min, double sec,
                                int& GPSWeek, double& GPSWeeks);
 
 void         mjdFromDateAndTime(const QDateTime& dateTime, int& mjd, double& dayfrac);
@@ -121,7 +121,7 @@ int          readInt(const QString& str, int pos, int len, int& value);
 
 int          readDbl(const QString& str, int pos, int len, double& value);
 
-void         topos(double xRec, double yRec, double zRec, double xSat, double ySat, double zSat, 
+void         topos(double xRec, double yRec, double zRec, double xSat, double ySat, double zSat,
                    double& rho, double& eleSat, double& azSat);
 
 void         deg2DMS(double decDeg, int& deg, int& min, double& sec);
@@ -147,8 +147,13 @@ int          indexFromAccuracy(double accuracy, t_eph::e_type type);
 
 double       associatedLegendreFunction(int n, int m, double t);
 
-int          factorial(int n);
+double       factorial(int n);
 
+/** Convert RTCM3 lock-time indicator to lock time in seconds
+* depending on input message format. Returns -1 if format is
+* unknown or indicator is invalid
+*/
+double       lti2sec(int type, int lti);
 
 // CRC24Q checksum calculation function (only full bytes supported).
 ///////////////////////////////////////////////////////////////////

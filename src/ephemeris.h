@@ -16,8 +16,8 @@ class t_clkCorr;
 
 class t_eph {
  public:
-  enum e_type {unknown, GPS, QZSS, GLONASS, Galileo, SBAS, BDS};
-  enum e_checkState {unchecked, ok, bad, outdated};
+  enum e_type {unknown, GPS, QZSS, GLONASS, Galileo, SBAS, BDS, IRNSS};
+  enum e_checkState {unchecked, ok, bad, outdated, unhealthy};
 
   t_eph();
   virtual ~t_eph();
@@ -25,6 +25,7 @@ class t_eph {
   virtual e_type  type() const = 0;
   virtual QString toString(double version) const = 0;
   virtual unsigned int IOD() const = 0;
+  virtual unsigned int isUnhealthy() const = 0;
   virtual int     slotNum() const {return 0;}
   bncTime TOC() const {return _TOC;}
   bool    isNewerThan(const t_eph* eph) const {return earlierTime(eph, this);}
@@ -38,10 +39,12 @@ class t_eph {
   static QString rinexDateStr(const bncTime& tt, const t_prn& prn, double version);
   static QString rinexDateStr(const bncTime& tt, const QString& prnStr, double version);
   static bool earlierTime(const t_eph* eph1, const t_eph* eph2) {return eph1->_TOC < eph2->_TOC;}
+  static bool prnSort(const t_eph* eph1, const t_eph* eph2) {return eph1->prn() < eph2->prn();}
 
  protected:
   virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const = 0;
   virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const = 0;
+
   t_prn        _prn;
   bncTime      _TOC;
   QDateTime    _receptDateTime;
@@ -89,20 +92,29 @@ class t_ephGPS : public t_eph {
   t_ephGPS(float rnxVersion, const QStringList& lines);
   virtual ~t_ephGPS() {}
 
-  virtual e_type type() const {return (_prn.system() == 'J' ? t_eph::QZSS : t_eph::GPS); }
+  virtual e_type type() const {
+    switch (_prn.system()) {
+      case 'J':
+        return t_eph::QZSS;
+      case 'I':
+        return t_eph::IRNSS;
+    };
+    return t_eph::GPS;
+  }
   virtual QString toString(double version) const;
-  virtual unsigned int  IOD() const { return static_cast<unsigned int>(_IODC); }
+  virtual unsigned int  IOD() const { return static_cast<unsigned int>(_IODE); }
+  virtual unsigned int  isUnhealthy() const { return static_cast<unsigned int>(_health); }
   double TGD() const {return _TGD;} // Timing Group Delay (P1-P2 DCB)
 
  private:
-  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const;
-  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const;
+  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const override;
+  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const override;
 
   double  _clock_bias;      // [s]
   double  _clock_drift;     // [s/s]
   double  _clock_driftrate; // [s/s^2]
 
-  double  _IODE;
+  double  _IODE;            // IODEC in case of IRNSS
   double  _Crs;             // [m]
   double  _Delta_n;         // [rad/s]
   double  _M0;              // [rad]
@@ -123,17 +135,17 @@ class t_ephGPS : public t_eph {
   double  _OMEGADOT;        // [rad/s]
 
   double  _IDOT;            // [rad/s]
-  double  _L2Codes;         // Codes on L2 channel
+  double  _L2Codes;         // Codes on L2 channel  (not valid for IRNSS)
   double  _TOEweek;
-  double  _L2PFlag;         // L2 P data flag
+  double  _L2PFlag;         // L2 P data flag (not valid for IRNSS and QZSS)
 
   mutable double  _ura;     // SV accuracy
   double  _health;          // SV health
   double  _TGD;             // [s]
-  double  _IODC;
+  double  _IODC;            // (not valid for IRNSS)
 
-  double  _TOT;             // Transmisstion time
-  double  _fitInterval;     // Fit interval
+  double  _TOT;             // Transmission time
+  double  _fitInterval;     // Fit interval (not valid for IRNSS)
 };
 
 class t_ephGlo : public t_eph {
@@ -141,7 +153,7 @@ class t_ephGlo : public t_eph {
  friend class RTCM3Decoder;
  public:
   t_ephGlo() {
-    _xv.ReSize(6);
+    _xv.ReSize(6); _xv = 0.0;
     _gps_utc          = 0.0;
     _tau              = 0.0;
     _gamma            = 0.0;
@@ -158,6 +170,24 @@ class t_ephGlo : public t_eph {
     _z_velocity       = 0.0;
     _z_acceleration   = 0.0;
     _E                = 0.0;
+    _almanac_health   = 0.0;
+    _almanac_health_availablility_indicator = 0.0;
+    _additional_data_availability = 0.0;
+    _tauC             = 0.0;
+    _P1               = 0.0;
+    _P2               = 0.0;
+    _P3               = 0.0;
+    _NA               = 0.0;
+    _M_P              = 0.0;
+    _M_l3             = 0.0;
+    _M_delta_tau      = 0.0;
+    _M_P4             = 0.0;
+    _M_FT             = 0.0;
+    _M_NT             = 0.0;
+    _M_M              = 0.0;
+    _M_N4             = 0.0;
+    _M_tau_GPS        = 0.0;
+    _M_l5             = 0.0;
   }
   t_ephGlo(float rnxVersion, const QStringList& lines);
   virtual ~t_ephGlo() {}
@@ -165,11 +195,12 @@ class t_ephGlo : public t_eph {
   virtual e_type type() const {return t_eph::GLONASS;}
   virtual QString toString(double version) const;
   virtual unsigned int  IOD() const;
+  virtual unsigned int isUnhealthy() const;
   virtual int slotNum() const {return int(_frequency_number);}
 
  private:
-  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const;
-  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc,  NEWMAT::ColumnVector &vv) const;
+  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const override;
+  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const override;
   static NEWMAT::ColumnVector glo_deriv(double /* tt */, const NEWMAT::ColumnVector& xv, double* acc);
 
   mutable bncTime      _tt;  // time
@@ -177,13 +208,13 @@ class t_ephGlo : public t_eph {
 
   double  _gps_utc;
   double  _tau;              // [s]
-  double  _gamma;            //
+  double  _gamma;            // [-]
   mutable double  _tki;      // message frame time
 
   double  _x_pos;            // [km]
   double  _x_velocity;       // [km/s]
   double  _x_acceleration;   // [km/s^2]
-  double  _health;           // 0 = O.K.
+  double  _health;           // 0 = O.K. MSB of Bn word
 
   double  _y_pos;            // [km]
   double  _y_velocity;       // [km/s]
@@ -194,6 +225,27 @@ class t_ephGlo : public t_eph {
   double  _z_velocity;       // [km/s]
   double  _z_acceleration;   // [km/s^2]
   double  _E;                // Age of Information [days]
+
+  double _almanac_health;     // Cn word
+  double _almanac_health_availablility_indicator;
+
+  double _additional_data_availability;  //
+  double _tauC;               // GLONASS time scale correction to UTC(SU) time [sec]
+  double _P1;                 // flag of the immediate data updating [-]
+  double _P2;                 // flag of oddness or evenness of the value of tb for intervals 30 or 60 minutes [-]
+  double _P3;                 // flag indicating a number of satellites for which almanac is transmitted within given frame [-]
+  double _NA;                 // calendar day number within the 4-year period [days]
+
+  double _M_P;                // control segment parameter that indicates the satellite operation mode with respect of time parameters
+  double _M_l3;               // health flag
+  double _M_delta_tau;        // [sec]
+  double _M_P4;               // flag to show that ephemeris parameters are present [-]
+  double _M_FT;               // indicator for predicted satellite user range accuracy [-]
+  double _M_NT;               // current date, calendar number of day within 4-year interval [days]
+  double _M_M;                // type of satellite transmitting navigation signal: 0 = GLONASS, 1 = GLONASS-M satellite [-]
+  double _M_N4;               // 4-year interval number starting from 1996
+  double _M_tau_GPS;          // correction to GPS time relative to GLONASS time [days]
+  double _M_l5;               // health flag
 };
 
 class t_ephGal : public t_eph {
@@ -236,10 +288,11 @@ class t_ephGal : public t_eph {
   virtual QString toString(double version) const;
   virtual e_type type() const {return t_eph::Galileo;}
   virtual unsigned int  IOD() const { return static_cast<unsigned long>(_IODnav); }
+  virtual unsigned int  isUnhealthy() const;
 
  private:
-  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const;
-  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const;
+  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const override;
+  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const override;
 
   double  _clock_bias;       //  [s]
   double  _clock_drift;      //  [s/s]
@@ -295,7 +348,7 @@ class t_ephSBAS : public t_eph {
  public:
   t_ephSBAS() {
     _IODN           = 0;
-    _TOW            = 0.0;
+    _TOT            = 0.0;
     _agf0           = 0.0;
     _agf1           = 0.0;
     _x_pos          = 0.0;
@@ -315,14 +368,15 @@ class t_ephSBAS : public t_eph {
 
   virtual e_type  type() const {return t_eph::SBAS;}
   virtual unsigned int IOD() const;
+  virtual unsigned int  isUnhealthy() const { return static_cast<unsigned int>(_health); }
   virtual QString toString(double version) const;
 
  private:
-  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const;
-  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const;
+  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const override;
+  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const override;
 
   int    _IODN;
-  double _TOW;            // not used (set to  0.9999e9)
+  double _TOT;            // not used (set to  0.9999e9)
   double _agf0;           // [s]    clock correction
   double _agf1;           // [s/s]  clock correction drift
 
@@ -346,7 +400,7 @@ class t_ephBDS : public t_eph {
  friend class t_ephEncoder;
  friend class RTCM3Decoder;
  public:
- t_ephBDS() : _TOEweek(-1.0) {
+ t_ephBDS() {
    _TOT             = 0.0;
    _AODE            = 0;
    _AODC            = 0;
@@ -375,18 +429,19 @@ class t_ephBDS : public t_eph {
    _SatH1           = 0.0;
    _TOW             = 0.0;
    _TOEsec          = 0.0;
-   _TOEweek         = 0.0;
+   _TOEweek         =-1.0;
  }
  t_ephBDS(float rnxVersion, const QStringList& lines);
   virtual ~t_ephBDS() {}
 
   virtual e_type  type() const {return t_eph::BDS;}
   virtual unsigned int IOD() const;
+  virtual unsigned int  isUnhealthy() const { return static_cast<unsigned int>(_SatH1); }
   virtual QString toString(double version) const;
 
  private:
-  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const;
-  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const;
+  virtual t_irc position(int GPSweek, double GPSweeks, double* xc, double* vv) const override;
+  virtual t_irc position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const override;
 
   double  _TOT;
   bncTime _TOE;
@@ -419,5 +474,4 @@ class t_ephBDS : public t_eph {
   double  _TOEsec;           //  [s] of BDT week
   double  _TOEweek;          //  BDT week will be set only in case of RINEX file input
 };
-
 #endif

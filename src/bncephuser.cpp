@@ -198,7 +198,7 @@ void bncEphUser::checkEphemeris(t_eph* eph) {
   bncTime currentTime(now.toString(Qt::ISODate).toStdString());
   double timeDiff = fabs(toc - currentTime);
 
-  if      (eph->type() == t_eph::GPS  || t_eph::Galileo) {
+  if (eph->type() == t_eph::GPS  || eph->type() == t_eph::Galileo) {
     if (timeDiff > 4*3600) { // update interval: 2h, data sets are valid for 4 hours
       eph->setCheckState(t_eph::outdated);
       return;

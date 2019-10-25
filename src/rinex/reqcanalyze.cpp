@@ -22,7 +22,21 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
-
+/* -------------------------------------------------------------------------
+ * BKG NTRIP Client
+ * -------------------------------------------------------------------------
+ *
+ * Class:      t_reqcAnalyze
+ *
+ * Purpose:    Analyze RINEX Files
+ *
+ * Author:     L. Mervart
+ *
+ * Created:    11-Apr-2012
+ *
+ * Changes:
+ *
+ * -----------------------------------------------------------------------*/
 
 #include <iostream>
 #include <iomanip>
@@ -34,14 +48,12 @@
 #include "reqcedit.h"
 #include "bncutils.h"
 #include "graphwin.h"
-#include "polarplot.h"
 #include "availplot.h"
 #include "eleplot.h"
 #include "dopplot.h"
 #include "bncephuser.h"
 
 using namespace std;
-using namespace NEWMAT;
 
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
@@ -56,17 +68,17 @@ t_reqcAnalyze::t_reqcAnalyze(QObject* parent) : QThread(parent) {
   _obsFileNames    = settings.value("reqcObsFile").toString().split(",", QString::SkipEmptyParts);
   _navFileNames    = settings.value("reqcNavFile").toString().split(",", QString::SkipEmptyParts);
   _reqcPlotSignals = settings.value("reqcSkyPlotSignals").toString();
-  _defaultSignalTypes << "G:1&2" << "R:1&2" << "J:1&2" << "E:1&5" << "S:1&5" << "C:2&7";
+  _defaultSignalTypes << "G:1&2&5" << "R:1&2&3" << "J:1&2" << "E:1&5" << "S:1&5" << "C:2&7" << "I:5&9";
   if (_reqcPlotSignals.isEmpty()) {
     _reqcPlotSignals = _defaultSignalTypes.join(" ");
   }
-  analyzePlotSignals(_signalTypes);
+  analyzePlotSignals();
 
-  connect(this, SIGNAL(dspSkyPlot(const QString&, const QString&, QVector<t_polarPoint*>*,
-                                  const QString&, QVector<t_polarPoint*>*,
+  qRegisterMetaType< QVector<t_skyPlotData> >("QVector<t_skyPlotData>");
+
+  connect(this, SIGNAL(dspSkyPlot(const QString&, QVector<t_skyPlotData>,
                                   const QByteArray&, double)),
-          this, SLOT(slotDspSkyPlot(const QString&, const QString&, QVector<t_polarPoint*>*,
-                                    const QString&, QVector<t_polarPoint*>*,
+          this, SLOT(slotDspSkyPlot(const QString&, QVector<t_skyPlotData>,
                                     const QByteArray&, double)));
 
   connect(this, SIGNAL(dspAvailPlot(const QString&, const QByteArray&)),
@@ -136,34 +148,20 @@ void t_reqcAnalyze::run() {
 
 //
 ////////////////////////////////////////////////////////////////////////////
-void t_reqcAnalyze::analyzePlotSignals(QMap<char, QVector<QString> >& signalTypes) {
+void t_reqcAnalyze::analyzePlotSignals() {
 
   QStringList signalsOpt = _reqcPlotSignals.split(" ", QString::SkipEmptyParts);
 
   for (int ii = 0; ii < signalsOpt.size(); ii++) {
     QStringList input = signalsOpt.at(ii).split(QRegExp("[:&]"), QString::SkipEmptyParts);
     if (input.size() > 1 && input[0].length() == 1) {
-      char system = input[0].toLatin1().constData()[0];
-      QStringList sysValid       = _defaultSignalTypes.filter(QString(system));
-      QStringList defaultSignals = sysValid.at(0).split(QRegExp("[:&]"));
-      if (sysValid.isEmpty()) {continue;}
-      if (input[1][0].isDigit()) {
-        signalTypes[system].append(input[1]);
-      }
-      else {
-        signalTypes[system].append(defaultSignals[1]);
-      }
-      if (input.size() > 2) {
-        if (input[2][0].isDigit()) {
-          signalTypes[system].append(input[2]);
-        }
-        else {
-          signalTypes[system].append(defaultSignals[2]);
-        }
-      } else {
-        signalTypes[system].append(defaultSignals[2]);
-        if (signalTypes[system][0] == signalTypes[system][1]) {
-          signalTypes[system][0] = defaultSignals[1];
+      char        system   = input[0].toLatin1().constData()[0];
+      QStringList sysValid = _defaultSignalTypes.filter(QString(system));
+      if (!sysValid.isEmpty()) {
+        for (int iSig = 1; iSig < input.size(); iSig++) {
+          if (input[iSig].length() == 1 && input[iSig][0].isDigit()) {
+            _signalTypes[system].append(input[iSig][0].toLatin1());
+          }
         }
       }
     }
@@ -178,7 +176,7 @@ void t_reqcAnalyze::analyzeFile(t_rnxObsFile* obsFile) {
 
   // A priori Coordinates
   // --------------------
-  ColumnVector xyzSta = obsFile->xyz();
+  NEWMAT::ColumnVector xyzSta = obsFile->xyz();
 
   // Loop over all Epochs
   // --------------------
@@ -242,9 +240,9 @@ void t_reqcAnalyze::analyzeFile(t_rnxObsFile* obsFile) {
 
 // Compute Dilution of Precision
 ////////////////////////////////////////////////////////////////////////////
-double t_reqcAnalyze::cmpDOP(const ColumnVector& xyzSta) const {
+double t_reqcAnalyze::cmpDOP(const NEWMAT::ColumnVector& xyzSta) const {
 
-  if ( xyzSta.Nrows() != 3 || xyzSta.NormFrobenius() == 0.0 ) {
+  if ( xyzSta.Nrows() != 3 || (xyzSta(1) == 0.0 && xyzSta(2) == 0.0 && xyzSta(3) == 0.0) ) {
     return 0.0;
   }
 
@@ -254,7 +252,7 @@ double t_reqcAnalyze::cmpDOP(const ColumnVector& xyzSta) const {
     return 0.0;
   }
 
-  Matrix AA(nSat, 4);
+  NEWMAT::Matrix AA(nSat, 4);
 
   unsigned nSatUsed = 0;
   for (unsigned iSat = 0; iSat < nSat; iSat++) {
@@ -274,11 +272,11 @@ double t_reqcAnalyze::cmpDOP(const ColumnVector& xyzSta) const {
       }
     }
     if (eph) {
-      ColumnVector xSat(4);
-      ColumnVector vv(3);
+      NEWMAT::ColumnVector xSat(6);
+      NEWMAT::ColumnVector vv(3);
       if (eph->getCrd(_currEpo->tt, xSat, vv, false) == success) {
         ++nSatUsed;
-        ColumnVector dx = xSat.Rows(1,3) - xyzSta;
+        NEWMAT::ColumnVector dx = xSat.Rows(1,3) - xyzSta;
         double rho = dx.NormFrobenius();
         AA(nSatUsed,1) = dx(1) / rho;
         AA(nSatUsed,2) = dx(2) / rho;
@@ -294,7 +292,7 @@ double t_reqcAnalyze::cmpDOP(const ColumnVector& xyzSta) const {
 
   AA = AA.Rows(1, nSatUsed);
 
-  SymmetricMatrix QQ;
+  NEWMAT::SymmetricMatrix QQ;
   QQ << AA.t() * AA;
   QQ = QQ.i();
 
@@ -324,7 +322,7 @@ void t_reqcAnalyze::updateQcSat(const t_qcSat& qcSat, t_qcSatSum& qcSatSum) {
 
 //
 ////////////////////////////////////////////////////////////////////////////
-void t_reqcAnalyze::setQcObs(const bncTime& epoTime, const ColumnVector& xyzSta,
+void t_reqcAnalyze::setQcObs(const bncTime& epoTime, const NEWMAT::ColumnVector& xyzSta,
                              const t_satObs& satObs, QMap<QString, bncTime>& lastObsTime,
                              t_qcSat& qcSat) {
 
@@ -337,9 +335,9 @@ void t_reqcAnalyze::setQcObs(const bncTime& epoTime, const ColumnVector& xyzSta,
     }
   }
   if (eph) {
-    ColumnVector xc(4);
-    ColumnVector vv(3);
-    if ( xyzSta.Ncols() == 3 && (xyzSta.NormFrobenius() != 0.0) &&
+    NEWMAT::ColumnVector xc(6);
+    NEWMAT::ColumnVector vv(3);
+    if ( xyzSta.Nrows() == 3 && (xyzSta(1) != 0.0 || xyzSta(2) != 0.0 || xyzSta(3) != 0.0) &&
          eph->getCrd(epoTime, xc, vv, false) == success) {
       double rho, eleSat, azSat;
       topos(xyzSta(1), xyzSta(2), xyzSta(3), xc(1), xc(2), xc(3), rho, eleSat, azSat);
@@ -383,46 +381,51 @@ void t_reqcAnalyze::setQcObs(const bncTime& epoTime, const ColumnVector& xyzSta,
       t_frequency::type fA = t_frequency::dummy;
       t_frequency::type fB = t_frequency::dummy;
       char sys             = satObs._prn.system();
-      std::string frqType1, frqType2;
       if (_signalTypes.find(sys) != _signalTypes.end()) {
-        frqType1.push_back(sys);
-        frqType1.push_back(_signalTypes[sys][0][0].toLatin1());
-        frqType2.push_back(sys);
-        frqType2.push_back(_signalTypes[sys][1][0].toLatin1());
-        if      (frqObs->_rnxType2ch[0] == frqType1[1]) {
-          fA = t_frequency::toInt(frqType1);
-          fB = t_frequency::toInt(frqType2);
+        for (int iSig = 0; iSig < _signalTypes[sys].size(); iSig++) {
+          if (frqObs->_rnxType2ch[0] == _signalTypes[sys][iSig]) {
+            string frqType; frqType.push_back(sys); frqType.push_back(_signalTypes[sys][iSig]);
+            fA = t_frequency::toInt(frqType);
+            break;
+          }
         }
-        else if (frqObs->_rnxType2ch[0] == frqType2[1]) {
-          fA = t_frequency::toInt(frqType2);
-          fB = t_frequency::toInt(frqType1);
+        if (fA != t_frequency::dummy) {
+          for (int iSig = 0; iSig < _signalTypes[sys].size(); iSig++) {
+            string frqType; frqType.push_back(sys); frqType.push_back(_signalTypes[sys][iSig]);
+            t_frequency::type fHlp = t_frequency::toInt(frqType);
+            if (fA != fHlp) {
+              fB = fHlp;
+              break;
+            }
+          }
         }
-      }
-      if (fA != t_frequency::dummy && fB != t_frequency::dummy) {
-        double f_a = t_CST::freq(fA, qcSat._slotNum);
-        double f_b = t_CST::freq(fB, qcSat._slotNum);
-        double C_a = frqObs->_code;
+        if (fA != t_frequency::dummy && fB != t_frequency::dummy) {
 
-        bool   foundA = false;
-        double L_a    = 0.0;
-        bool   foundB = false;
-        double L_b    = 0.0;
-        for (unsigned jj = 0; jj < satObs._obs.size(); jj++) {
-          const t_frqObs* frqObsHlp = satObs._obs[jj];
-          if      (frqObsHlp->_rnxType2ch[0] == t_frequency::toString(fA)[1] &&
-              frqObsHlp->_phaseValid) {
-            foundA = true;
-            L_a    = frqObsHlp->_phase * t_CST::c / f_a;
+          double f_a = t_CST::freq(fA, qcSat._slotNum);
+          double f_b = t_CST::freq(fB, qcSat._slotNum);
+          double C_a = frqObs->_code;
+
+          bool   foundA = false;
+          double L_a    = 0.0;
+          bool   foundB = false;
+          double L_b    = 0.0;
+          for (unsigned jj = 0; jj < satObs._obs.size(); jj++) {
+            const t_frqObs* frqObsHlp = satObs._obs[jj];
+            if      (frqObsHlp->_rnxType2ch[0] == t_frequency::toString(fA)[1] &&
+                frqObsHlp->_phaseValid) {
+              foundA = true;
+              L_a    = frqObsHlp->_phase * t_CST::c / f_a;
+            }
+            else if (frqObsHlp->_rnxType2ch[0] == t_frequency::toString(fB)[1] &&
+                frqObsHlp->_phaseValid) {
+              foundB = true;
+              L_b    = frqObsHlp->_phase * t_CST::c / f_b;
+            }
           }
-          else if (frqObsHlp->_rnxType2ch[0] == t_frequency::toString(fB)[1] &&
-              frqObsHlp->_phaseValid) {
-            foundB = true;
-            L_b    = frqObsHlp->_phase * t_CST::c / f_b;
+          if (foundA && foundB) {
+            qcFrq._setMP = true;
+            qcFrq._rawMP = C_a - L_a - 2.0*f_b*f_b/(f_a*f_a-f_b*f_b) * (L_a - L_b);
           }
-        }
-        if (foundA && foundB) {
-          qcFrq._setMP = true;
-          qcFrq._rawMP = C_a - L_a - 2.0*f_b*f_b/(f_a*f_a-f_b*f_b) * (L_a - L_b);
         }
       }
     }
@@ -529,121 +532,86 @@ void t_reqcAnalyze::analyzeMultipath() {
   } // sat loop
 }
 
+// Auxiliary Function for sorting MP data
+////////////////////////////////////////////////////////////////////////////
+bool t_reqcAnalyze::mpLessThan(const t_polarPoint* p1, const t_polarPoint* p2) {
+  return p1->_value < p2->_value;
+}
+
 //
 ////////////////////////////////////////////////////////////////////////////
 void t_reqcAnalyze::preparePlotData(const t_rnxObsFile* obsFile) {
 
-  QString mp1Title = "Multipath\n";
-  QString mp2Title = "Multipath\n";
-  QString sn1Title = "Signal-to-Noise Ratio\n";
-  QString sn2Title = "Signal-to-Noise Ratio\n";
-
-  for(QMap<char, QVector<QString> >::iterator it = _signalTypes.begin();
-      it != _signalTypes.end(); it++) {
-      mp1Title += QString(it.key()) + ":" + it.value()[0] + " ";
-      sn1Title += QString(it.key()) + ":" + it.value()[0] + " ";
-      mp2Title += QString(it.key()) + ":" + it.value()[1] + " ";
-      sn2Title += QString(it.key()) + ":" + it.value()[1] + " ";
+  if (!BNC_CORE->GUIenabled()) {
+    return ;
   }
 
-  QVector<t_polarPoint*>* dataMP1  = new QVector<t_polarPoint*>;
-  QVector<t_polarPoint*>* dataMP2  = new QVector<t_polarPoint*>;
-  QVector<t_polarPoint*>* dataSNR1 = new QVector<t_polarPoint*>;
-  QVector<t_polarPoint*>* dataSNR2 = new QVector<t_polarPoint*>;
+  QVector<t_skyPlotData> skyPlotDataMP;
+  QVector<t_skyPlotData> skyPlotDataSN;
 
-  // Loop over all observations
-  // --------------------------
-  for (int iEpo = 0; iEpo < _qcFile._qcEpo.size(); iEpo++) {
-    t_qcEpo& qcEpo = _qcFile._qcEpo[iEpo];
-    QMapIterator<t_prn, t_qcSat> it(qcEpo._qcSat);
-    while (it.hasNext()) {
-      it.next();
-      const t_prn&   prn   = it.key();
-      const t_qcSat& qcSat = it.value();
-      if (qcSat._eleSet) {
+  for(QMap<char, QVector<char> >::iterator it1 = _signalTypes.begin();
+      it1 != _signalTypes.end(); it1++) {
 
-        QString frqType[2];
+    char sys = it1.key();
 
-        for (int iFrq = 0; iFrq < qcSat._qcFrq.size(); iFrq++) {
-          const t_qcFrq& qcFrq = qcSat._qcFrq[iFrq];
+    for (int ii = 0; ii < it1.value().size(); ii++) {
 
-          for (int ii = 0; ii < 2; ii++) {
-            if (frqType[ii].isEmpty()) {
-              QMapIterator<char, QVector<QString> > it(_signalTypes);
-              while (it.hasNext()) {
-                it.next();
-                if (it.key() == prn.system()) {
-                  if (it.value()[ii] == qcFrq._rnxType2ch || it.value()[ii] == qcFrq._rnxType2ch.left(1)) {
-                    frqType[ii] = qcFrq._rnxType2ch;
-                    break;
-                  }
-                }
+      skyPlotDataMP.append(t_skyPlotData(sys));  t_skyPlotData& dataMP = skyPlotDataMP.last();
+      skyPlotDataSN.append(t_skyPlotData(sys));  t_skyPlotData& dataSN = skyPlotDataSN.last();
+
+      dataMP._title = "Multipath\n"             + QString(it1.key()) + ":" + it1.value()[ii] + " ";
+      dataSN._title = "Signal-to-Noise Ratio\n" + QString(it1.key()) + ":" + it1.value()[ii] + " ";
+
+      // Loop over all observations
+      // --------------------------
+      for (int iEpo = 0; iEpo < _qcFile._qcEpo.size(); iEpo++) {
+        t_qcEpo& qcEpo = _qcFile._qcEpo[iEpo];
+        QMapIterator<t_prn, t_qcSat> it2(qcEpo._qcSat);
+        while (it2.hasNext()) {
+          it2.next();
+          const t_qcSat& qcSat = it2.value();
+          if (qcSat._eleSet && it2.key().system() == sys) {
+            for (int iFrq = 0; iFrq < qcSat._qcFrq.size(); iFrq++) {
+              const t_qcFrq& qcFrq = qcSat._qcFrq[iFrq];
+              if (QString(it1.value()[ii]) == qcFrq._rnxType2ch.left(1)) {
+                (*dataMP._data) << (new t_polarPoint(qcSat._azDeg, 90.0 - qcSat._eleDeg, qcFrq._stdMP));
+                (*dataSN._data) << (new t_polarPoint(qcSat._azDeg, 90.0 - qcSat._eleDeg, qcFrq._SNR));
               }
             }
           }
-          if      (qcFrq._rnxType2ch == frqType[0]) {
-            (*dataSNR1) << (new t_polarPoint(qcSat._azDeg, 90.0 - qcSat._eleDeg, qcFrq._SNR));
-            (*dataMP1)  << (new t_polarPoint(qcSat._azDeg, 90.0 - qcSat._eleDeg, qcFrq._stdMP));
-          }
-          else if (qcFrq._rnxType2ch == frqType[1]) {
-            (*dataSNR2) << (new t_polarPoint(qcSat._azDeg, 90.0 - qcSat._eleDeg, qcFrq._SNR));
-            (*dataMP2)  << (new t_polarPoint(qcSat._azDeg, 90.0 - qcSat._eleDeg, qcFrq._stdMP));
-          }
         }
       }
+
+      // Sort MP data (make the largest values always visible)
+      // -----------------------------------------------------
+      qStableSort(dataMP._data->begin(), dataMP._data->end(), mpLessThan);
     }
   }
 
   // Show the plots
   // --------------
-  if (BNC_CORE->GUIenabled()) {
-    QFileInfo  fileInfo(obsFile->fileName());
-    QByteArray title = fileInfo.fileName().toLatin1();
-    emit dspSkyPlot(obsFile->fileName(), mp1Title,  dataMP1,  mp2Title,  dataMP2,  "Meters",  2.0);
-    emit dspSkyPlot(obsFile->fileName(), sn1Title, dataSNR1, sn2Title, dataSNR2, "dbHz",   54.0);
-    emit dspAvailPlot(obsFile->fileName(), title);
-  }
-  else {
-    for (int ii = 0; ii < dataMP1->size(); ii++) {
-      delete dataMP1->at(ii);
-    }
-    delete dataMP1;
-    for (int ii = 0; ii < dataMP2->size(); ii++) {
-      delete dataMP2->at(ii);
-    }
-    delete dataMP2;
-    for (int ii = 0; ii < dataSNR1->size(); ii++) {
-      delete dataSNR1->at(ii);
-    }
-    delete dataSNR1;
-    for (int ii = 0; ii < dataSNR2->size(); ii++) {
-      delete dataSNR2->at(ii);
-    }
-    delete dataSNR2;
-  }
+  QFileInfo  fileInfo(obsFile->fileName());
+  QByteArray title = fileInfo.fileName().toLatin1();
+  emit dspSkyPlot(obsFile->fileName(), skyPlotDataMP, "Meters",  1.0);
+  emit dspSkyPlot(obsFile->fileName(), skyPlotDataSN, "dbHz",   54.0);
+  emit dspAvailPlot(obsFile->fileName(), title);
 }
 
 //
 ////////////////////////////////////////////////////////////////////////////
-void t_reqcAnalyze::slotDspSkyPlot(const QString& fileName, const QString& title1,
-                                   QVector<t_polarPoint*>* data1, const QString& title2,
-                                   QVector<t_polarPoint*>* data2, const QByteArray& scaleTitle,
-                                   double maxValue) {
+void t_reqcAnalyze::slotDspSkyPlot(const QString& fileName,
+                                   QVector<t_skyPlotData> skyPlotData,
+                                   const QByteArray& scaleTitle, double maxValue) {
 
   if (BNC_CORE->GUIenabled()) {
 
     if (maxValue == 0.0) {
-      if (data1) {
-        for (int ii = 0; ii < data1->size(); ii++) {
-          double val = data1->at(ii)->_value;
-          if (maxValue < val) {
-            maxValue = val;
-          }
-        }
-      }
-      if (data2) {
-        for (int ii = 0; ii < data2->size(); ii++) {
-          double val = data2->at(ii)->_value;
+      QVectorIterator<t_skyPlotData> it(skyPlotData);
+      while (it.hasNext()) {
+        const t_skyPlotData&          plotData = it.next();
+        const QVector<t_polarPoint*>* data     = plotData._data;
+        for (int ii = 0; ii < data->size(); ii++) {
+          double val = data->at(ii)->_value;
           if (maxValue < val) {
             maxValue = val;
           }
@@ -654,23 +622,27 @@ void t_reqcAnalyze::slotDspSkyPlot(const QString& fileName, const QString& title
     QwtInterval scaleInterval(0.0, maxValue);
 
     QVector<QWidget*> plots;
-    if (data1) {
-      QwtText title(title1);
+    QVector<int>      rows;
+    QMutableVectorIterator<t_skyPlotData> it(skyPlotData);
+    int iRow = 0;
+    char sys = ' ';
+    while (it.hasNext()) {
+      t_skyPlotData&          plotData = it.next();
+      QVector<t_polarPoint*>* data     = plotData._data;
+      QwtText title(plotData._title);
       QFont font = title.font(); font.setPointSize(font.pointSize()-1); title.setFont(font);
-      t_polarPlot* plot1 = new t_polarPlot(title, scaleInterval, BNC_CORE->mainWindow());
-      plot1->addCurve(data1);
-      plots << plot1;
-    }
-    if (data2) {
-      QwtText title(title2);
-      QFont font = title.font(); font.setPointSize(font.pointSize()-1); title.setFont(font);
-      t_polarPlot* plot2 = new t_polarPlot(title, scaleInterval, BNC_CORE->mainWindow());
-      plot2->addCurve(data2);
-      plots << plot2;
+      t_polarPlot* plot = new t_polarPlot(title, scaleInterval, BNC_CORE->mainWindow());
+      plot->addCurve(data);
+      plots << plot;
+      if (sys != ' ' && sys != plotData._sys) {
+        iRow += 1;
+      }
+      sys = plotData._sys;
+      rows  << iRow;
     }
 
-    t_graphWin* graphWin = new t_graphWin(0, fileName, plots,
-                                          &scaleTitle, &scaleInterval);
+    t_graphWin* graphWin = new t_graphWin(0, fileName, plots, false,
+                                          &scaleTitle, &scaleInterval, &rows);
 
     graphWin->show();
 
@@ -711,39 +683,25 @@ void t_reqcAnalyze::slotDspAvailPlot(const QString& fileName, const QByteArray& 
         data._eleDeg << qcSat._eleDeg;
       }
 
-      char frqChar1 = _signalTypes[prn.system()][0][0].toLatin1();
-      char frqChar2 = _signalTypes[prn.system()][1][0].toLatin1();
-
-      QString frqType1;
-      QString frqType2;
-      for (int iFrq = 0; iFrq < qcSat._qcFrq.size(); iFrq++) {
-        const t_qcFrq& qcFrq = qcSat._qcFrq[iFrq];
-        if (qcFrq._rnxType2ch[0] == frqChar1 && frqType1.isEmpty()) {
-          frqType1 = qcFrq._rnxType2ch;
-        }
-        if (qcFrq._rnxType2ch[0] == frqChar2 && frqType2.isEmpty()) {
-          frqType2 = qcFrq._rnxType2ch;
-        }
-        if      (qcFrq._rnxType2ch == frqType1) {
-          if      (qcFrq._slip) {
-            data._L1slip << mjdX24;
+      for (int iSig = 0; iSig < _signalTypes[prn.system()].size(); iSig++) {
+        char    frqChar = _signalTypes[prn.system()][iSig];
+        QString frqType;
+        for (int iFrq = 0; iFrq < qcSat._qcFrq.size(); iFrq++) {
+          const t_qcFrq& qcFrq = qcSat._qcFrq[iFrq];
+          if (qcFrq._rnxType2ch[0] == frqChar && frqType.isEmpty()) {
+            frqType = qcFrq._rnxType2ch;
           }
-          else if (qcFrq._gap) {
-            data._L1gap << mjdX24;
-          }
-          else {
-            data._L1ok << mjdX24;
-          }
-        }
-        else if (qcFrq._rnxType2ch == frqType2) {
-          if      (qcFrq._slip) {
-            data._L2slip << mjdX24;
-          }
-          else if (qcFrq._gap) {
-            data._L2gap << mjdX24;
-          }
-          else {
-            data._L2ok << mjdX24;
+          if      (qcFrq._rnxType2ch == frqType) {
+            t_plotData::t_hlpStatus& status = data._status[frqChar];
+            if      (qcFrq._slip) {
+              status._slip << mjdX24;
+            }
+            else if (qcFrq._gap) {
+              status._gap << mjdX24;
+            }
+            else {
+              status._ok << mjdX24;
+            }
           }
         }
       }
@@ -760,7 +718,7 @@ void t_reqcAnalyze::slotDspAvailPlot(const QString& fileName, const QByteArray& 
 
     QVector<QWidget*> plots;
     plots << plotA << plotZ << plotD;
-    t_graphWin* graphWin = new t_graphWin(0, fileName, plots, 0, 0);
+    t_graphWin* graphWin = new t_graphWin(0, fileName, plots, true);
 
     int ww = QFontMetrics(graphWin->font()).width('w');
     graphWin->setMinimumSize(120*ww, 40*ww);
@@ -805,7 +763,7 @@ void t_reqcAnalyze::printReport(const t_rnxObsFile* obsFile) {
                                    << _qcFile._startTime.timestr(1,'.').c_str()    << endl
         << "End Time           : " << _qcFile._endTime.datestr().c_str()           << ' '
                                    << _qcFile._endTime.timestr(1,'.').c_str()      << endl
-        << "Interval           : " << _qcFile._interval                            << endl;
+        << "Interval           : " << _qcFile._interval << " sec"                  << endl;
 
   // Number of systems
   // -----------------
@@ -1040,7 +998,7 @@ void t_reqcAnalyze::checkEphemerides() {
     t_rnxNavFile rnxNavFile(fileName, t_rnxNavFile::input);
     for (unsigned ii = 0; ii < rnxNavFile.ephs().size(); ii++) {
       t_eph* eph = rnxNavFile.ephs()[ii];
-      ephUser.putNewEph(eph, true);
+      ephUser.putNewEph(eph, false);
       if (eph->checkState() == t_eph::bad) {
         ++numBad;
       }
@@ -1070,7 +1028,7 @@ void t_reqcAnalyze::checkEphemerides() {
 }
 
 void t_reqcAnalyze::setExpectedObs(const bncTime& startTime, const bncTime& endTime,
-                                   double interval, const ColumnVector& xyzSta) {
+                                   double interval, const NEWMAT::ColumnVector& xyzSta) {
 
   for(QMap<t_prn, int>::iterator it = _numExpObs.begin();
       it != _numExpObs.end(); it++) {
@@ -1087,9 +1045,9 @@ void t_reqcAnalyze::setExpectedObs(const bncTime& startTime, const bncTime& endT
       bncTime epoTime;
       for (epoTime = startTime - interval; epoTime < endTime;
            epoTime = epoTime + interval) {
-        ColumnVector xc(4);
-        ColumnVector vv(3);
-        if ( xyzSta.Nrows() == 3 && (xyzSta.NormFrobenius() != 0.0) &&
+        NEWMAT::ColumnVector xc(6);
+        NEWMAT::ColumnVector vv(3);
+        if ( xyzSta.Nrows() == 3 && (xyzSta(1) != 0.0 || xyzSta(2) != 0.0 || xyzSta(3) != 0.0) &&
              eph->getCrd(epoTime, xc, vv, false) == success) {
           double rho, eleSat, azSat;
           topos(xyzSta(1), xyzSta(2), xyzSta(3), xc(1), xc(2), xc(3), rho, eleSat, azSat);

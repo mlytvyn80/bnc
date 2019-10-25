@@ -22,7 +22,21 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
-
+/* -------------------------------------------------------------------------
+ * BKG NTRIP Client
+ * -------------------------------------------------------------------------
+ *
+ * Class:      bncutils
+ *
+ * Purpose:    Auxiliary Functions
+ *
+ * Author:     L. Mervart
+ *
+ * Created:    30-Aug-2006
+ *
+ * Changes:
+ *
+ * -----------------------------------------------------------------------*/
 
 #include <iostream>
 #include <ctime>
@@ -32,16 +46,16 @@
 #include <QStringList>
 #include <QDateTime>
 
-#include <newmat/newmatap.h>
-#include <newmat/newmat.h>
+#include "Misc.h"
 
+#include <newmat/newmatap.h>
 
 #include "bncutils.h"
 #include "bnccore.h"
-#include "Misc.h"
+
+using namespace NEWMAT;
 
 using namespace std;
-using namespace NEWMAT;
 
 struct leapseconds { /* specify the day of leap second */
   int day;        /* this is the day, where 23:59:59 exists 2 times */
@@ -78,7 +92,7 @@ static const struct leapseconds leap[] = {
 {31, 12, 2008,34},
 {30, 06, 2012,35},
 {30, 06, 2015,36},
-{31, 12, 2016,37},
+{01, 01, 2017,37},
 {0,0,0,0} /* end marker */
 };
 
@@ -162,7 +176,6 @@ void expandEnvVar(QString& str) {
       str.replace(rxStr, qgetenv(envVar.toLatin1()));
     }
   }
-
 }
 
 // Strip White Space
@@ -240,14 +253,14 @@ QDateTime currentDateAndTimeGPS() {
 ////////////////////////////////////////////////////////////////////////////
 bool checkForWrongObsEpoch(bncTime obsEpoch) {
   const double maxDt = 600.0;
-  long iSec    = long(floor(obsEpoch.gpssec()+0.5));
-  long obsTime = obsEpoch.gpsw()*7*24*3600 + iSec;
+  bncTime obsTime = obsEpoch;
   int    week;
   double sec;
   currentGPSWeeks(week, sec);
-  long currTime = week * 7*24*3600 + long(sec);
+  bncTime currTime(week, sec);
 
-  if (fabs(currTime - obsTime) > maxDt) {
+  if (((currTime - obsTime) < 0.0) ||
+      (fabs(currTime - obsTime) > maxDt)) {
     return true;
   }
   return false;
@@ -292,16 +305,12 @@ QByteArray ggaString(const QByteArray& latitude,
   gga += flagE + QString(",1,05,1.00");
   gga += QString(",%1,").arg(hei, 2, 'f', 1);
   gga += QString("M,10.000,M,,");
-  int xori;
 
-  char XOR = 0;
-  char Buff[gga.size()];
-  strncpy(Buff, gga.toLatin1().data(), gga.size());
-  int iLen = strlen(Buff);
-  for (xori = 0; xori < iLen; xori++) {
-    XOR ^= (char)Buff[xori];
+  unsigned char XOR = 0;
+  for (int ii = 0; ii < gga.length(); ii++) {
+    XOR ^= (unsigned char) gga[ii].toLatin1();
   }
-  gga = "$" + gga + QString("*%1").arg(XOR, 2, 16, QLatin1Char('0'));
+  gga = "$" + gga + QString("*%1").arg(XOR, 2, 16, QLatin1Char('0')) + "\n";
 
   return gga.toLatin1();
 }
@@ -410,7 +419,6 @@ t_irc xyz2ell(const NEWMAT::ColumnVector &XYZ, NEWMAT::ColumnVector &Ell)
 
   return failure;
 }
-
 // Rectangular Coordinates -> North, East, Up Components
 ////////////////////////////////////////////////////////////////////////////
 void xyz2neu(const double* Ell, const double* xyz, double* neu) {
@@ -456,8 +464,6 @@ void xyz2neu(const ColumnVector &Ell, const ColumnVector &xyz, ColumnVector &neu
 }
 
 
-// North, East, Up Components -> Rectangular Coordinates
-////////////////////////////////////////////////////////////////////////////
 void neu2xyz(const NEWMAT::ColumnVector &Ell, const NEWMAT::ColumnVector &neu, NEWMAT::ColumnVector &xyz)
 {
 
@@ -478,8 +484,10 @@ void neu2xyz(const NEWMAT::ColumnVector &Ell, const NEWMAT::ColumnVector &neu, N
            + sinPhi        * neu(3);
 }
 
-void neu2xyz(const double* Ell, const double* neu, double* xyz)
-{
+// North, East, Up Components -> Rectangular Coordinates
+////////////////////////////////////////////////////////////////////////////
+void neu2xyz(const double* Ell, const double* neu, double* xyz) {
+
   double sinPhi = sin(Ell[0]);
   double cosPhi = cos(Ell[0]);
   double sinLam = sin(Ell[1]);
@@ -558,7 +566,7 @@ double nint(double val) {
 
 //
 ////////////////////////////////////////////////////////////////////////////
-int factorial(int n) {
+double factorial(int n) {
   if (n == 0) {
     return 1;
   }
@@ -608,9 +616,9 @@ void jacobiXYZ_NEU(const double* Ell, NEWMAT::Matrix& jacobi) {
 
 // Jacobian Ell --> XYZ
 ////////////////////////////////////////////////////////////////////////////
-void jacobiEll_XYZ(const double* Ell, Matrix& jacobi) {
+void jacobiEll_XYZ(const double* Ell, NEWMAT::Matrix& jacobi) {
 
-  Tracer tracer("jacobiEll_XYZ");
+  NEWMAT::Tracer tracer("jacobiEll_XYZ");
 
   double sinPhi = sin(Ell[0]);
   double cosPhi = cos(Ell[0]);
@@ -637,46 +645,46 @@ void jacobiEll_XYZ(const double* Ell, Matrix& jacobi) {
 
 // Covariance Matrix in NEU
 ////////////////////////////////////////////////////////////////////////////
-void covariXYZ_NEU(const SymmetricMatrix& QQxyz, const double* Ell,
-                   SymmetricMatrix& Qneu) {
+void covariXYZ_NEU(const NEWMAT::SymmetricMatrix &QQxyz, const double* Ell,
+                   NEWMAT::SymmetricMatrix& Qneu) {
 
-  Tracer tracer("covariXYZ_NEU");
+  NEWMAT::Tracer tracer("covariXYZ_NEU");
 
-  Matrix CC(3,3);
+  NEWMAT::Matrix CC(3,3);
   jacobiXYZ_NEU(Ell, CC);
   Qneu << CC * QQxyz * CC.t();
 }
 
 // Covariance Matrix in XYZ
 ////////////////////////////////////////////////////////////////////////////
-void covariNEU_XYZ(const SymmetricMatrix& QQneu, const double* Ell,
-                   SymmetricMatrix& Qxyz) {
+void covariNEU_XYZ(const NEWMAT::SymmetricMatrix& QQneu, const double* Ell,
+                   NEWMAT::SymmetricMatrix& Qxyz) {
 
-  Tracer tracer("covariNEU_XYZ");
+  NEWMAT::Tracer tracer("covariNEU_XYZ");
 
-  Matrix CC(3,3);
+  NEWMAT::Matrix CC(3,3);
   jacobiXYZ_NEU(Ell, CC);
   Qxyz << CC.t() * QQneu * CC;
 }
 
 // Fourth order Runge-Kutta numerical integrator for ODEs
 ////////////////////////////////////////////////////////////////////////////
-ColumnVector rungeKutta4(
+NEWMAT::ColumnVector rungeKutta4(
   double xi,              // the initial x-value
-  const ColumnVector& yi, // vector of the initial y-values
+  const NEWMAT::ColumnVector& yi, // vector of the initial y-values
   double dx,              // the step size for the integration
-  double* acc,            // aditional acceleration
-  ColumnVector (*der)(double x, const ColumnVector& y, double* acc)
+  double* acc,            // additional acceleration
+  NEWMAT::ColumnVector (*der)(double x, const NEWMAT::ColumnVector& y, double* acc)
                           // A pointer to a function that computes the
                           // derivative of a function at a point (x,y)
                          ) {
 
-  ColumnVector k1 = der(xi       , yi       , acc) * dx;
-  ColumnVector k2 = der(xi+dx/2.0, yi+k1/2.0, acc) * dx;
-  ColumnVector k3 = der(xi+dx/2.0, yi+k2/2.0, acc) * dx;
-  ColumnVector k4 = der(xi+dx    , yi+k3    , acc) * dx;
+  NEWMAT::ColumnVector k1 = der(xi       , yi       , acc) * dx;
+  NEWMAT::ColumnVector k2 = der(xi+dx/2.0, yi+k1/2.0, acc) * dx;
+  NEWMAT::ColumnVector k3 = der(xi+dx/2.0, yi+k2/2.0, acc) * dx;
+  NEWMAT::ColumnVector k4 = der(xi+dx    , yi+k3    , acc) * dx;
 
-  ColumnVector yf = yi + k1/6.0 + k2/3.0 + k3/3.0 + k4/6.0;
+  NEWMAT::ColumnVector yf = yi + k1/6.0 + k2/3.0 + k3/3.0 + k4/6.0;
 
   return yf;
 }
@@ -869,17 +877,17 @@ QString fortranFormat(double value, int width, int prec) {
 
 //
 //////////////////////////////////////////////////////////////////////////////
-void kalman(const Matrix& AA, const ColumnVector& ll, const DiagonalMatrix& PP,
-            SymmetricMatrix& QQ, ColumnVector& xx) {
+void kalman(const NEWMAT::Matrix& AA, const NEWMAT::ColumnVector& ll, const NEWMAT::DiagonalMatrix& PP,
+            NEWMAT::SymmetricMatrix& QQ, NEWMAT::ColumnVector& xx) {
 
-  Tracer tracer("kalman");
+  NEWMAT::Tracer tracer("kalman");
 
   int nPar = AA.Ncols();
   int nObs = AA.Nrows();
-  UpperTriangularMatrix SS = Cholesky(QQ).t();
+  NEWMAT::UpperTriangularMatrix SS = Cholesky(QQ).t();
 
-  Matrix SA = SS*AA.t();
-  Matrix SRF(nObs+nPar, nObs+nPar); SRF = 0;
+  NEWMAT::Matrix SA = SS*AA.t();
+  NEWMAT::Matrix SRF(nObs+nPar, nObs+nPar); SRF = 0;
   for (int ii = 1; ii <= nObs; ++ii) {
     SRF(ii,ii) = 1.0 / sqrt(PP(ii,ii));
   }
@@ -887,63 +895,81 @@ void kalman(const Matrix& AA, const ColumnVector& ll, const DiagonalMatrix& PP,
   SRF.SubMatrix   (nObs+1, nObs+nPar, 1, nObs) = SA;
   SRF.SymSubMatrix(nObs+1, nObs+nPar)          = SS;
 
-  UpperTriangularMatrix UU;
-  QRZ(SRF, UU);
+  NEWMAT::UpperTriangularMatrix UU;
+  NEWMAT::QRZ(SRF, UU);
 
   SS = UU.SymSubMatrix(nObs+1, nObs+nPar);
-  UpperTriangularMatrix SH_rt = UU.SymSubMatrix(1, nObs);
-  Matrix YY  = UU.SubMatrix(1, nObs, nObs+1, nObs+nPar);
+  NEWMAT::UpperTriangularMatrix SH_rt = UU.SymSubMatrix(1, nObs);
+  NEWMAT::Matrix YY  = UU.SubMatrix(1, nObs, nObs+1, nObs+nPar);
 
-  UpperTriangularMatrix SHi = SH_rt.i();
+  NEWMAT::UpperTriangularMatrix SHi = SH_rt.i();
 
-  Matrix KT  = SHi * YY;
-  SymmetricMatrix Hi; Hi << SHi * SHi.t();
+  NEWMAT::Matrix KT  = SHi * YY;
+  NEWMAT::SymmetricMatrix Hi; Hi << SHi * SHi.t();
 
   xx += KT.t() * (ll - AA * xx);
   QQ << (SS.t() * SS);
 }
 
 double accuracyFromIndex(int index, t_eph::e_type type) {
+double accuracy = -1.0;
 
-  if (type == t_eph::GPS || type == t_eph::BDS || type == t_eph::SBAS
-      || type == t_eph::QZSS) {
-
+  if (type == t_eph::GPS ||
+      type == t_eph::BDS ||
+      type == t_eph::SBAS||
+      type == t_eph::QZSS) {
     if ((index >= 0) && (index <= 6)) {
       if (index == 3) {
-        return ceil(10.0 * pow(2.0, (double(index) / 2.0) + 1.0)) / 10.0;
+        accuracy =  ceil(10.0 * pow(2.0, (double(index) / 2.0) + 1.0)) / 10.0;
       }
       else {
-        return floor(10.0 * pow(2.0, (double(index) / 2.0) + 1.0)) / 10.0;
+        accuracy = floor(10.0 * pow(2.0, (double(index) / 2.0) + 1.0)) / 10.0;
       }
     }
     else if ((index > 6) && (index <= 15)) {
-      return (10.0 * pow(2.0, (double(index) - 2.0))) / 10.0;
+      accuracy = (10.0 * pow(2.0, (double(index) - 2.0))) / 10.0;
     }
     else {
-      return 8192.0;
+      accuracy = 8192.0;
     }
   }
-
-  if (type == t_eph::Galileo) {
-
+  else if (type == t_eph::Galileo) {
     if ((index >= 0) && (index <= 49)) {
-      return (double(index) / 100.0);
+      accuracy = (double(index) / 100.0);
     }
     else if ((index > 49) && (index <= 74)) {
-      return (50.0 + (double(index) - 50.0) * 2.0) / 100.0;
+      accuracy = (50.0 + (double(index) - 50.0) * 2.0) / 100.0;
     }
     else if ((index > 74) && (index <= 99)) {
-      return 1.0 + (double(index) - 75.0) * 0.04;
+      accuracy = 1.0 + (double(index) - 75.0) * 0.04;
     }
     else if ((index > 99) && (index <= 125)) {
-      return 2.0 + (double(index) - 100.0) * 0.16;
+      accuracy = 2.0 + (double(index) - 100.0) * 0.16;
     }
     else {
-      return -1.0;
+      accuracy = -1.0;
     }
   }
-
-  return double(index);
+  else if (type == t_eph::IRNSS) {
+    if ((index >= 0) && (index <= 6)) {
+      if      (index == 1) {
+        accuracy = 2.8;
+      }
+      else if (index == 3) {
+        accuracy = 5.7;
+      }
+      else if (index == 5) {
+        accuracy = 11.3;
+      }
+      else {
+        accuracy = pow(2, 1 + index / 2);
+      }
+    }
+    else if ((index > 6) && (index <= 15)) {
+      accuracy = pow(2, index - 2);
+    }
+  }
+  return accuracy;
 }
 
 int indexFromAccuracy(double accuracy, t_eph::e_type type) {
@@ -1040,3 +1066,71 @@ unsigned long CRC24(long size, const unsigned char *buf) {
   return crc;
 }
 
+// Convert RTCM3 lock-time indicator to lock time in seconds
+////////////////////////////////////////////////////////////////////////////
+double lti2sec(int type, int lti) {
+
+  if ( (type>=1001 && type<=1004) ||
+       (type>=1009 && type<=1012)    ) { // RTCM3 msg 100[1...4] and 10[09...12]
+         if (lti<   0) return  -1;
+    else if (lti<  24) return   1*lti;      // [  0   1   23]
+    else if (lti<  48) return   2*lti-24;   // [ 24   2   70]
+    else if (lti<  72) return   4*lti-120;  // [ 72   4  164]
+    else if (lti<  96) return   8*lti-408;  // [168   8  352]
+    else if (lti< 120) return  16*lti-1176; // [360  16  728]
+    else if (lti< 127) return  32*lti-3096; // [744  32  905]
+    else if (lti==127) return  937;
+    else               return  -1;
+  }
+  else if (type%10==2 || type%10==3 ||
+           type%10==4 || type%10==5) {  // RTCM3 MSM-2/-3/-4/-5
+    switch(lti) {
+      case( 0) : return      0;
+      case( 1) : return     32e-3;
+      case( 2) : return     64e-3;
+      case( 3) : return    128e-3;
+      case( 4) : return    256e-3;
+      case( 5) : return    512e-3;
+      case( 6) : return   1024e-3;
+      case( 7) : return   2048e-3;
+      case( 8) : return   4096e-3;
+      case( 9) : return   8192e-3;
+      case(10) : return  16384e-3;
+      case(11) : return  32768e-3;
+      case(12) : return  65536e-3;
+      case(13) : return 131072e-3;
+      case(14) : return 262144e-3;
+      case(15) : return 524288e-3;
+      default  : return     -1;
+    };
+  }
+  else if (type%10==6 || type%10==7) {  // RTCM3 MSM-6 and MSM-7
+         if (lti<   0) return (     -1               );
+    else if (lti<  64) return (      1*lti           )*1e-3;
+    else if (lti<  96) return (      2*lti-64        )*1e-3;
+    else if (lti< 128) return (      4*lti-256       )*1e-3;
+    else if (lti< 160) return (      8*lti-768       )*1e-3;
+    else if (lti< 192) return (     16*lti-2048      )*1e-3;
+    else if (lti< 224) return (     32*lti-5120      )*1e-3;
+    else if (lti< 256) return (     64*lti-12288     )*1e-3;
+    else if (lti< 288) return (    128*lti-28672     )*1e-3;
+    else if (lti< 320) return (    256*lti-65536     )*1e-3;
+    else if (lti< 352) return (    512*lti-147456    )*1e-3;
+    else if (lti< 384) return (   1024*lti-327680    )*1e-3;
+    else if (lti< 416) return (   2048*lti-720896    )*1e-3;
+    else if (lti< 448) return (   4096*lti-1572864   )*1e-3;
+    else if (lti< 480) return (   8192*lti-3407872   )*1e-3;
+    else if (lti< 512) return (  16384*lti-7340032   )*1e-3;
+    else if (lti< 544) return (  32768*lti-15728640  )*1e-3;
+    else if (lti< 576) return (  65536*lti-33554432  )*1e-3;
+    else if (lti< 608) return ( 131072*lti-71303168  )*1e-3;
+    else if (lti< 640) return ( 262144*lti-150994944 )*1e-3;
+    else if (lti< 672) return ( 524288*lti-318767104 )*1e-3;
+    else if (lti< 704) return (1048576*lti-671088640 )*1e-3;
+    else if (lti==704) return (2097152*lti-1409286144)*1e-3;
+    else               return (     -1               );
+  }
+  else {
+    return -1;
+  };
+};

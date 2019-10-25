@@ -203,14 +203,13 @@ void t_rnxNavFile::read(QTextStream* stream) {
       }
       eph = new t_ephBDS(version(), lines);
     }
-    if (eph &&
-        eph->checkState() != t_eph::bad &&
-        eph->checkState() != t_eph::outdated) {
-      _ephs.push_back(eph);
+    else if (prn[0] == 'I') {
+      for (int ii = 1; ii < 8; ii++) {
+        lines << stream->readLine();
+      }
+      eph = new t_ephGPS(version(), lines);
     }
-    else {
-      delete eph;
-    }
+    _ephs.push_back(eph);
   }
 }
 
@@ -287,7 +286,35 @@ void t_rnxNavFile::writeHeader(const QMap<QString, QString>* txtMap) {
              << "RINEX VERSION / TYPE\n";
   }
   else {
-    *_stream << QString("%1           N: GNSS NAV DATA    M: MIXED")
+    QString fmt;
+    t_eph::e_type sys = satSystem();
+    switch(sys) {
+      case t_eph::GPS:
+        fmt.append("%1           N: GNSS NAV DATA    G: GPS");
+        break;
+      case t_eph::GLONASS:
+        fmt.append("%1           N: GNSS NAV DATA    R: GLONASS");
+        break;
+      case t_eph::Galileo:
+        fmt.append("%1           N: GNSS NAV DATA    E: Galileo");
+        break;
+      case t_eph::QZSS:
+        fmt.append("%1           N: GNSS NAV DATA    J: QZSS");
+        break;
+      case t_eph::BDS:
+        fmt.append("%1           N: GNSS NAV DATA    C: BDS");
+        break;
+      case t_eph::IRNSS:
+        fmt.append("%1           N: GNSS NAV DATA    I: IRNSS");
+        break;
+      case t_eph::SBAS:
+        fmt.append("%1           N: GNSS NAV DATA    S: SBAS");
+        break;
+      case t_eph::unknown:
+        fmt.append("%1           N: GNSS NAV DATA    M: MIXED");
+        break;
+    }
+    *_stream << fmt
       .arg(_header._version, 9, 'f', 2)
       .leftJustified(60)
              << "RINEX VERSION / TYPE\n";

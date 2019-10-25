@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QEvent>
+#include <QFileOpenEvent>
 
 class t_app : public QApplication {
  Q_OBJECT

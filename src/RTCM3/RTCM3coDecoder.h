@@ -26,8 +26,11 @@
 #define RTCM3CODECODER_H
 
 #include <fstream>
-#include <QtCore>
-#include <QtNetwork>
+
+#include <QByteArray>
+#include <QList>
+#include <QMap>
+
 #include "GPSDecoder.h"
 
 extern "C" {

@@ -3,7 +3,6 @@
 #include <iomanip>
 #include <cstring>
 
-
 #include "ephemeris.h"
 #include "bncutils.h"
 #include "bnctime.h"
@@ -56,17 +55,21 @@ void t_eph::setClkCorr(const t_clkCorr* clkCorr) {
 ////////////////////////////////////////////////////////////////////////////
 t_irc t_eph::getCrd(const bncTime& tt, ColumnVector& xc, ColumnVector& vv, bool useCorr) const {
 
-  if (_checkState == bad) {
+  if (_checkState == bad ||
+      _checkState == unhealthy ||
+      _checkState == outdated) {
     return failure;
   }
   const QVector<int> updateInt = QVector<int>()  << 1 << 2 << 5 << 10 << 15 << 30
                                                  << 60 << 120 << 240 << 300 << 600
                                                  << 900 << 1800 << 3600 << 7200
                                                  << 10800;
+  xc.ReSize(6);
+  vv.ReSize(3);
 
-  if (position(tt.gpsw(), tt.gpssec(), xc, vv) != success)
+  if (position(tt.gpsw(), tt.gpssec(), xc, vv) != success) {
     return failure;
-
+  }
   if (useCorr) {
     if (_orbCorr && _clkCorr) {
       double dtO = tt - _orbCorr->_time;
@@ -147,7 +150,6 @@ QString t_eph::rinexDateStr(const bncTime& tt, const QString& prnStr, double ver
   return datStr;
 }
 
-
 // Constructor
 //////////////////////////////////////////////////////////////////////////////
 t_ephGPS::t_ephGPS(float rnxVersion, const QStringList& lines) {
@@ -183,7 +185,9 @@ t_ephGPS::t_ephGPS(float rnxVersion, const QStringList& lines) {
       in >> prnStr;
 
       if (prnStr.size() == 1 &&
-          (prnStr[0] == 'G' || prnStr[0] == 'J')) {
+          (prnStr[0] == 'G' ||
+           prnStr[0] == 'J' ||
+           prnStr[0] == 'I')) {
         in >> n;
         prnStr.append(n);
       }
@@ -194,6 +198,9 @@ t_ephGPS::t_ephGPS(float rnxVersion, const QStringList& lines) {
       }
       else if (prnStr.at(0) == 'J') {
         _prn.set('J', prnStr.mid(1).toInt());
+      }
+      else if (prnStr.at(0) == 'I') {
+        _prn.set('I', prnStr.mid(1).toInt());
       }
       else {
         _prn.set('G', prnStr.toInt());
@@ -256,7 +263,7 @@ t_ephGPS::t_ephGPS(float rnxVersion, const QStringList& lines) {
       }
     }
 
-    else if ( iLine == 5 ) {
+    else if ( iLine == 5 && type() != t_eph::IRNSS) {
       if ( readDbl(line, pos[0], fieldLen, _IDOT   ) ||
            readDbl(line, pos[1], fieldLen, _L2Codes) ||
            readDbl(line, pos[2], fieldLen, _TOEweek  ) ||
@@ -265,12 +272,27 @@ t_ephGPS::t_ephGPS(float rnxVersion, const QStringList& lines) {
         return;
       }
     }
+    else if ( iLine == 5 && type() == t_eph::IRNSS) {
+      if ( readDbl(line, pos[0], fieldLen, _IDOT   ) ||
+           readDbl(line, pos[2], fieldLen, _TOEweek) ) {
+        _checkState = bad;
+        return;
+      }
+    }
 
-    else if ( iLine == 6 ) {
+    else if ( iLine == 6 && type() != t_eph::IRNSS) {
       if ( readDbl(line, pos[0], fieldLen, _ura   ) ||
            readDbl(line, pos[1], fieldLen, _health) ||
            readDbl(line, pos[2], fieldLen, _TGD   ) ||
            readDbl(line, pos[3], fieldLen, _IODC  ) ) {
+        _checkState = bad;
+        return;
+      }
+    }
+    else if ( iLine == 6 && type() == t_eph::IRNSS) {
+      if ( readDbl(line, pos[0], fieldLen, _ura   ) ||
+           readDbl(line, pos[1], fieldLen, _health) ||
+           readDbl(line, pos[2], fieldLen, _TGD   ) ) {
         _checkState = bad;
         return;
       }
@@ -290,14 +312,10 @@ t_ephGPS::t_ephGPS(float rnxVersion, const QStringList& lines) {
 ////////////////////////////////////////////////////////////////////////////
 t_irc t_ephGPS::position(int GPSweek, double GPSweeks, double* xc, double* vv) const {
 
-  if (_checkState == bad) {
-    return failure;
-  }
-
   static const double omegaEarth = 7292115.1467e-11;
   static const double gmGRS      = 398.6005e12;
 
-  memset(xc, 0, 4*sizeof(double));
+  memset(xc, 0, 6*sizeof(double));
   memset(vv, 0, 3*sizeof(double));
 
   double a0 = _sqrt_A * _sqrt_A;
@@ -314,10 +332,15 @@ t_irc t_ephGPS::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   double M  = _M0 + n*tk;
   double E  = M;
   double E_last;
+  int    nLoop = 0;
   do {
     E_last = E;
     E = M + _e*sin(E);
-  } while ( fabs(E-E_last)*a0 > 0.001 );
+
+    if (++nLoop == 100) {
+      return failure;
+    }
+  } while ( fabs(E-E_last)*a0 > 0.001);
   double v      = 2.0*atan( sqrt( (1.0 + _e)/(1.0 - _e) )*tan( E/2 ) );
   double u0     = v + _omega;
   double sin2u0 = sin(2*u0);
@@ -369,6 +392,9 @@ t_irc t_ephGPS::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   // -----------------------
   // correspondent to IGS convention and GPS ICD (and SSR standard)
   xc[3] -= 2.0 * (xc[0]*vv[0] + xc[1]*vv[1] + xc[2]*vv[2]) / t_CST::c / t_CST::c;
+
+  xc[4] = _clock_drift + _clock_driftrate*tc;
+  xc[5] = _clock_driftrate;
 
   return success;
 }
@@ -457,7 +483,6 @@ t_irc t_ephGPS::position(int GPSweek, double GPSweeks, ColumnVector &xc, ColumnV
     xc(4) -= 2.0 * (xc(1)*vv(1) + xc(2)*vv(2) + xc(3)*vv(3)) / t_CST::c / t_CST::c;
 
     return success;
-
 }
 
 // RINEX Format String
@@ -499,27 +524,54 @@ QString t_ephGPS::toString(double version) const {
     .arg(_omega,    19, 'e', 12)
     .arg(_OMEGADOT, 19, 'e', 12);
 
-  out << QString(fmt)
-    .arg(_IDOT,    19, 'e', 12)
-    .arg(_L2Codes, 19, 'e', 12)
-    .arg(_TOEweek, 19, 'e', 12)
-    .arg(_L2PFlag, 19, 'e', 12);
+  if (type() == t_eph::IRNSS) {
+    out << QString(fmt)
+      .arg(_IDOT,    19, 'e', 12)
+      .arg(0.0,      19, 'e', 12)
+      .arg(_TOEweek, 19, 'e', 12)
+      .arg(0.0,      19, 'e', 12);
+  }
+  else {
+    out << QString(fmt)
+      .arg(_IDOT,    19, 'e', 12)
+      .arg(_L2Codes, 19, 'e', 12)
+      .arg(_TOEweek, 19, 'e', 12)
+      .arg(_L2PFlag, 19, 'e', 12);
+  }
 
-  out << QString(fmt)
-    .arg(_ura,    19, 'e', 12)
-    .arg(_health, 19, 'e', 12)
-    .arg(_TGD,    19, 'e', 12)
-    .arg(_IODC,   19, 'e', 12);
+  if (type() == t_eph::IRNSS) {
+    out << QString(fmt)
+      .arg(_ura,    19, 'e', 12)
+      .arg(_health, 19, 'e', 12)
+      .arg(_TGD,    19, 'e', 12)
+      .arg(0.0,     19, 'e', 12);
+  }
+  else {
+    out << QString(fmt)
+      .arg(_ura,    19, 'e', 12)
+      .arg(_health, 19, 'e', 12)
+      .arg(_TGD,    19, 'e', 12)
+      .arg(_IODC,   19, 'e', 12);
+  }
 
   double tot = _TOT;
   if (tot == 0.9999e9 && version < 3.0) {
     tot = 0.0;
   }
-  out << QString(fmt)
-    .arg(tot,          19, 'e', 12)
-    .arg(_fitInterval, 19, 'e', 12)
-    .arg("",           19, QChar(' '))
-    .arg("",           19, QChar(' '));
+  if (type() == t_eph::IRNSS) {
+    out << QString(fmt)
+      .arg(tot,          19, 'e', 12)
+      .arg(0.0,          19, 'e', 12)
+      .arg("",           19, QChar(' '))
+      .arg("",           19, QChar(' '));
+  }
+  else {
+    out << QString(fmt)
+      .arg(tot,          19, 'e', 12)
+      .arg(_fitInterval, 19, 'e', 12)
+      .arg("",           19, QChar(' '))
+      .arg("",           19, QChar(' '));
+  }
 
   return rnxStr;
 }
@@ -581,15 +633,15 @@ t_ephGlo::t_ephGlo(float rnxVersion, const QStringList& lines) {
 
       _TOC.set(year, month, day, hour, min, sec);
       _TOC  = _TOC + _gps_utc;
-
+      int nd = int((_TOC.gpssec())) / (24.0*60.0*60.0);
       if ( readDbl(line, pos[1], fieldLen, _tau  ) ||
            readDbl(line, pos[2], fieldLen, _gamma) ||
            readDbl(line, pos[3], fieldLen, _tki  ) ) {
         _checkState = bad;
         return;
       }
-
-      _tau = -_tau;
+      _tki -= nd * 86400.0;
+      _tau  = -_tau;
     }
 
     else if      ( iLine == 1 ) {
@@ -626,7 +678,7 @@ t_ephGlo::t_ephGlo(float rnxVersion, const QStringList& lines) {
   // Initialize status vector
   // ------------------------
   _tt = _TOC;
-  _xv.ReSize(6);
+  _xv.ReSize(6); _xv = 0.0;
   _xv(1) = _x_pos * 1.e3;
   _xv(2) = _y_pos * 1.e3;
   _xv(3) = _z_pos * 1.e3;
@@ -639,18 +691,14 @@ t_ephGlo::t_ephGlo(float rnxVersion, const QStringList& lines) {
 ////////////////////////////////////////////////////////////////////////////
 t_irc t_ephGlo::position(int GPSweek, double GPSweeks, double* xc, double* vv) const {
 
-  if (_checkState == bad) {
-    return failure;
-  }
-
   static const double nominalStep = 10.0;
 
-  memset(xc, 0, 4*sizeof(double));
+  memset(xc, 0, 6*sizeof(double));
   memset(vv, 0, 3*sizeof(double));
 
   double dtPos = bncTime(GPSweek, GPSweeks) - _tt;
 
-  if (fabs(dtPos) > 24*3600.0) {
+  if (fabs(dtPos) > 24 * 3600.0) {
     return failure;
   }
 
@@ -661,6 +709,7 @@ t_irc t_ephGlo::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   acc[0] = _x_acceleration * 1.e3;
   acc[1] = _y_acceleration * 1.e3;
   acc[2] = _z_acceleration * 1.e3;
+
   for (int ii = 1; ii <= nSteps; ii++) {
     _xv = rungeKutta4(_tt.gpssec(), _xv, step, acc, glo_deriv);
     _tt = _tt + step;
@@ -680,6 +729,9 @@ t_irc t_ephGlo::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   // ----------------
   double dtClk = bncTime(GPSweek, GPSweeks) - _TOC;
   xc[3] = -_tau + _gamma * dtClk;
+
+  xc[4] = _gamma;
+  xc[5] = 0.0;
 
   return success;
 }
@@ -735,14 +787,14 @@ t_irc t_ephGlo::position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc,
 //////////////////////////////////////////////////////////////////////////////
 QString t_ephGlo::toString(double version) const {
 
-  QString rnxStr = rinexDateStr(_TOC-_gps_utc, _prn, version);
-
+  QString rnxStr = rinexDateStr(_TOC -_gps_utc, _prn, version);
+  int nd = int((_TOC - _gps_utc).gpssec()) / (24.0*60.0*60.0);
   QTextStream out(&rnxStr);
 
   out << QString("%1%2%3\n")
-    .arg(-_tau,  19, 'e', 12)
-    .arg(_gamma, 19, 'e', 12)
-    .arg(_tki,   19, 'e', 12);
+    .arg(-_tau,           19, 'e', 12)
+    .arg(_gamma,          19, 'e', 12)
+    .arg(_tki+nd*86400.0, 19, 'e', 12);
 
   QString fmt = version < 3.0 ? "   %1%2%3%4\n" : "    %1%2%3%4\n";
 
@@ -810,6 +862,26 @@ unsigned int t_ephGlo::IOD() const {
   bncTime tMoscow = _TOC - _gps_utc + 3 * 3600.0;
   return (unsigned long)tMoscow.daysec() / 900;
 }
+
+// Health status of Glonass Ephemeris (virtual)
+////////////////////////////////////////////////////////////////////////////
+unsigned int t_ephGlo::isUnhealthy() const {
+
+  if (_almanac_health_availablility_indicator) {
+      if ((_health == 0 && _almanac_health == 0) ||
+          (_health == 1 && _almanac_health == 0) ||
+          (_health == 1 && _almanac_health == 1)) {
+        return 1;
+      }
+  }
+  else if (!_almanac_health_availablility_indicator) {
+    if (_health) {
+      return 1;
+    }
+  }
+  return 0; /* (_health == 0 && _almanac_health == 1) or (_health == 0) */
+}
+
 
 // Constructor
 //////////////////////////////////////////////////////////////////////////////
@@ -964,14 +1036,10 @@ t_ephGal::t_ephGal(float rnxVersion, const QStringList& lines) {
 ////////////////////////////////////////////////////////////////////////////
 t_irc t_ephGal::position(int GPSweek, double GPSweeks, double* xc, double* vv) const {
 
-  if (_checkState == bad) {
-    return failure;
-  }
-
   static const double omegaEarth = 7292115.1467e-11;
-  static const double gmWGS = 398.60044e12;
+  static const double gmWGS = 398.6004418e12;
 
-  memset(xc, 0, 4*sizeof(double));
+  memset(xc, 0, 6*sizeof(double));
   memset(vv, 0, 3*sizeof(double));
 
   double a0 = _sqrt_A * _sqrt_A;
@@ -988,9 +1056,14 @@ t_irc t_ephGal::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   double M  = _M0 + n*tk;
   double E  = M;
   double E_last;
+  int    nLoop = 0;
   do {
     E_last = E;
     E = M + _e*sin(E);
+
+    if (++nLoop == 100) {
+      return failure;
+    }
   } while ( fabs(E-E_last)*a0 > 0.001 );
   double v      = 2.0*atan( sqrt( (1.0 + _e)/(1.0 - _e) )*tan( E/2 ) );
   double u0     = v + _omega;
@@ -1045,6 +1118,9 @@ t_irc t_ephGal::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   xc[3] -= 4.442807633e-10 * _e * sqrt(a0) *sin(E);
   // correspondent to IGS convention
   //xc[3] -= 2.0 * (xc[0]*vv[0] + xc[1]*vv[1] + xc[2]*vv[2]) / t_CST::c / t_CST::c;
+
+  xc[4] = _clock_drift + _clock_driftrate*tc;
+  xc[5] = _clock_driftrate;
 
   return success;
 }
@@ -1134,6 +1210,15 @@ t_irc t_ephGal::position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc,
 
     return success;
 
+}
+
+// Health status of Galileo Ephemeris (virtual)
+////////////////////////////////////////////////////////////////////////////
+unsigned int t_ephGal::isUnhealthy() const {
+  if (_E5aHS && _E5bHS && _E1_bHS) {
+    return 1;
+  }
+  return 0;
 }
 
 // RINEX Format String
@@ -1266,6 +1351,7 @@ QString t_ephGal::toString(double version) const {
     .arg(BGD_1_5A,         19, 'e', 12)
     .arg(BGD_1_5B,         19, 'e', 12);
 
+
   double tot = _TOT;
   if (tot == 0.9999e9 && version < 3.0) {
     tot = 0.0;
@@ -1336,7 +1422,7 @@ t_ephSBAS::t_ephSBAS(float rnxVersion, const QStringList& lines) {
 
       if ( readDbl(line, pos[1], fieldLen, _agf0 ) ||
            readDbl(line, pos[2], fieldLen, _agf1 ) ||
-           readDbl(line, pos[3], fieldLen, _TOW  ) ) {
+           readDbl(line, pos[3], fieldLen, _TOT  ) ) {
         _checkState = bad;
         return;
       }
@@ -1417,10 +1503,6 @@ unsigned int t_ephSBAS::IOD() const {
 ////////////////////////////////////////////////////////////////////////////
 t_irc t_ephSBAS::position(int GPSweek, double GPSweeks, double* xc, double* vv) const {
 
-  if (_checkState == bad) {
-    return failure;
-  }
-
   bncTime tt(GPSweek, GPSweeks);
   double  dt = tt - _TOC;
 
@@ -1433,6 +1515,9 @@ t_irc t_ephSBAS::position(int GPSweek, double GPSweeks, double* xc, double* vv) 
   vv[2] = _z_velocity + _z_acceleration * dt;
 
   xc[3] = _agf0 + _agf1 * dt;
+
+  xc[4] = _agf1;
+  xc[5] = 0.0;
 
   return success;
 }
@@ -1471,7 +1556,7 @@ QString t_ephSBAS::toString(double version) const {
   out << QString("%1%2%3\n")
     .arg(_agf0, 19, 'e', 12)
     .arg(_agf1, 19, 'e', 12)
-    .arg(_TOW,  19, 'e', 12);
+    .arg(_TOT,  19, 'e', 12);
 
   QString fmt = version < 3.0 ? "   %1%2%3%4\n" : "    %1%2%3%4\n";
 
@@ -1645,43 +1730,12 @@ t_ephBDS::t_ephBDS(float rnxVersion, const QStringList& lines) {
 // IOD of BDS Ephemeris (virtual)
 ////////////////////////////////////////////////////////////////////////////
 unsigned int t_ephBDS::IOD() const {
-  unsigned char buffer[80];
-  int size = 0;
-  int numbits = 0;
-  long long bitbuffer = 0;
-  unsigned char *startbuffer = buffer;
-
-  BDSADDBITSFLOAT(14, this->_IDOT, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<13))
-  BDSADDBITSFLOAT(11, this->_clock_driftrate, 1.0/static_cast<double>(1<<30)
-      /static_cast<double>(1<<30)/static_cast<double>(1<<6))
-  BDSADDBITSFLOAT(22, this->_clock_drift, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<20))
-  BDSADDBITSFLOAT(24, this->_clock_bias, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<3))
-  BDSADDBITSFLOAT(18, this->_Crs, 1.0/static_cast<double>(1<<6))
-  BDSADDBITSFLOAT(16, this->_Delta_n, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<13))
-  BDSADDBITSFLOAT(32, this->_M0, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(18, this->_Cuc, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(32, this->_e, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<3))
-  BDSADDBITSFLOAT(18, this->_Cus, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(32, this->_sqrt_A, 1.0/static_cast<double>(1<<19))
-  BDSADDBITSFLOAT(18, this->_Cic, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(32, this->_OMEGA0, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(18, this->_Cis, 1.0/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(32, this->_i0, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(18, this->_Crc, 1.0/static_cast<double>(1<<6))
-  BDSADDBITSFLOAT(32, this->_omega, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<1))
-  BDSADDBITSFLOAT(24, this->_OMEGADOT, M_PI/static_cast<double>(1<<30)/static_cast<double>(1<<13))
-  BDSADDBITS(5, 0)  // the last byte is filled by 0-bits to obtain a length of an integer multiple of 8
-
-  return CRC24(size, startbuffer);
+  return (int(_TOEsec)/720) % 240;
 }
 
 // Compute BDS Satellite Position (virtual)
 //////////////////////////////////////////////////////////////////////////////
 t_irc t_ephBDS::position(int GPSweek, double GPSweeks, double* xc, double* vv) const {
-
-  if (_checkState == bad) {
-    return failure;
-  }
 
   static const double gmBDS    = 398.6004418e12;
   static const double omegaBDS = 7292115.0000e-11;
@@ -1816,7 +1870,7 @@ t_irc t_ephBDS::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
     Matrix RdotZ(3,3);
     double C = cos(ll);
     double S = sin(ll);
-    Matrix UU(3,3);
+    Matrix UU(3,3);        
     UU(1,1) =  -S;  UU(1,2) =  +C;  UU(1,3) = 0.0;
     UU(2,1) =  -C;  UU(3,2) =  -S;  UU(2,3) = 0.0;
     UU(3,1) = 0.0;  UU(3,2) = 0.0;  UU(3,3) = 0.0;
@@ -1844,10 +1898,10 @@ t_irc t_ephBDS::position(int GPSweek, double GPSweeks, double* xc, double* vv) c
   // correspondent to IGS convention
   // xc[3] -= 2.0 * (xc[0]*vv[0] + xc[1]*vv[1] + xc[2]*vv[2]) / t_CST::c / t_CST::c;
 
+  xc[4] = _clock_drift + _clock_driftrate*tc;
+  xc[5] = _clock_driftrate;
   return success;
 }
-
-
 
 t_irc t_ephBDS::position(int GPSweek, double GPSweeks, NEWMAT::ColumnVector &xc, NEWMAT::ColumnVector &vv) const
 {

@@ -22,6 +22,8 @@ class t_frqObs  {
     _dopplerValid    = false;
     _snr             = 0.0;
     _snrValid        = false;
+    _lockTime        = 0.0;
+    _lockTimeValid   = false;    
     _slip            = false;
     _slipCounter     = 0;
     _biasJumpCounter = 0;
@@ -35,6 +37,8 @@ class t_frqObs  {
   bool              _dopplerValid;
   double            _snr;
   bool              _snrValid;
+  double            _lockTime;
+  bool              _lockTimeValid;    
   bool              _slip;
   int               _slipCounter;
   int               _biasJumpCounter;
@@ -109,6 +113,19 @@ class t_clkCorr {
   double         _dotDotDClk;
 };
 
+class t_URA {
+ public:
+  t_URA();
+  static void writeEpoch(std::ostream* out, const QList<t_URA>& corrList);
+  static void readEpoch(const std::string& epoLine, std::istream& in, QList<t_URA>& corrList);
+  std::string    _staID;
+  t_prn          _prn;
+  unsigned int   _iod;
+  bncTime        _time;
+  unsigned int   _updateInt;
+  double         _ura;
+};
+
 class t_frqCodeBias {
  public:
   t_frqCodeBias() {
@@ -150,8 +167,8 @@ class t_satPhaseBias {
     _updateInt  = 0;
     _dispBiasConstistInd = 0;
     _MWConsistInd = 0;
-    _yawDeg     = 0.0;
-    _yawDegRate = 0.0;
+    _yaw        = 0.0;
+    _yawRate    = 0.0;
   }
   static void writeEpoch(std::ostream* out, const QList<t_satPhaseBias>& biasList);
   static void readEpoch(const std::string& epoLine, std::istream& in, QList<t_satPhaseBias>& biasList);
@@ -161,8 +178,8 @@ class t_satPhaseBias {
   unsigned int                _updateInt;           // not satellite specific
   unsigned int                _dispBiasConstistInd; // not satellite specific
   unsigned int                _MWConsistInd;        // not satellite specific
-  double                      _yawDeg;
-  double                      _yawDegRate;
+  double                      _yaw;
+  double                      _yawRate;
   std::vector<t_frqPhaseBias> _bias;
 };
 
@@ -188,7 +205,7 @@ class t_vTec {
 
 class t_corrSSR {
  public:
-  enum e_type {clkCorr, orbCorr, codeBias, phaseBias, vTec, unknown};
+  enum e_type {clkCorr, orbCorr, codeBias, phaseBias, vTec, URA, unknown};
   static e_type readEpoLine(const std::string& line, bncTime& epoTime,
                             unsigned int& updateInt, int& numEntries, std::string& staID);
 };

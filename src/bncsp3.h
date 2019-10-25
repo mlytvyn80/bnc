@@ -15,7 +15,7 @@ class bncSP3 : public bncoutf {
   class t_sp3Sat {
    public:
     t_sp3Sat() {
-      _xyz.ReSize(3); 
+      _xyz.ReSize(3);
       _xyz      = 0.0;
       _clk      = 0.0;
       _clkValid = false;
@@ -42,8 +42,9 @@ class bncSP3 : public bncoutf {
   bncSP3(const QString& fileName); // input
   bncSP3(const QString& sklFileName, const QString& intr, int sampl); // output
   virtual ~bncSP3();
-  t_irc write(int GPSweek, double GPSweeks, const QString& prn, 
-              const NEWMAT::ColumnVector& xCoM, double sp3Clk);
+  t_irc write(int GPSweek, double GPSweeks, const QString& prn,
+              const NEWMAT::ColumnVector& xCoM, double sp3Clk,
+              const NEWMAT::ColumnVector& v, double sp3ClkRate);
   const t_sp3Epoch* nextEpoch();
   const t_sp3Epoch* currEpoch() const {return _currEpoch;}
   const t_sp3Epoch* prevEpoch() const {return _prevEpoch;}

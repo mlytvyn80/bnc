@@ -42,24 +42,24 @@ class GPSDecoder {
   GPSDecoder();
   virtual ~GPSDecoder();
 
-  virtual t_irc Decode(char* buffer, int bufLen, 
+  virtual t_irc Decode(char* buffer, int bufLen,
                        std::vector<std::string>& errmsg) = 0;
 
 
   virtual int corrGPSEpochTime() const {return -1;}
 
   void initRinex(const QByteArray& staID, const QUrl& mountPoint,
-                 const QByteArray& latitude, const QByteArray& longitude, 
+                 const QByteArray& latitude, const QByteArray& longitude,
                  const QByteArray& nmea, const QByteArray& ntripVersion);
 
   void dumpRinexEpoch(const t_satObs& obs, const QByteArray& format);
 
   void setRinexReconnectFlag(bool flag);
 
-  struct t_antInfo {
+  struct t_antRefPoint {
     enum t_type { ARP, APC };
 
-    t_antInfo() {
+    t_antRefPoint() {
       xx = yy = zz = height = 0.0;
       type = ARP;
       height_f = false;
@@ -75,13 +75,29 @@ class GPSDecoder {
     int    message;
   };
 
+  struct t_antInfo {
+    t_antInfo() {
+    };
+    char descriptor[256];
+    char serialnumber[256];
+  };
+
+  struct t_recInfo {
+    t_recInfo() {
+    };
+    char descriptor[256];
+    char serialnumber[256];
+    char firmware[256];
+  };
+
   /** List of observations */
-  QList<t_satObs>  _obsList;
-  QList<int>       _typeList;  // RTCM message types
-  QStringList      _antType;   // RTCM antenna descriptor
-  QList<t_antInfo> _antList;   // RTCM antenna XYZ
-  QString          _gloFrq;    // GLONASS slot
-  bncRinex*        _rnx;       // RINEX writer
+  QList<t_satObs>      _obsList;
+  QList<int>           _typeList;  // RTCM message types
+  QList<t_antInfo>     _antType;   // RTCM antenna descriptor
+  QList<t_recInfo>     _recType;   // RTCM receiver descriptor
+  QList<t_antRefPoint> _antList;   // RTCM antenna XYZ
+  QString              _gloFrq;    // GLONASS slot
+  bncRinex*            _rnx;       // RINEX writer
 };
 
 #endif

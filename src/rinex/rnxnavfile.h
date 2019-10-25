@@ -29,18 +29,19 @@
 #include <QtCore>
 #include "bncconst.h"
 #include "bnctime.h"
+#include "ephemeris.h"
 
 class t_pppOpt;
 class bncPPPclient;
 class t_eph;
 
+#define defaultRnxNavVersion2 2.11
+#define defaultRnxNavVersion3 3.04
+
 class t_rnxNavFile {
 
  public:
   enum e_inpOut {input, output};
-  static constexpr double defaultRnxNavVersion2 = 2.11;
-  static constexpr double defaultRnxNavVersion3 = 3.03;
-
  private:
   class t_rnxNavHeader {
    public:
@@ -49,9 +50,10 @@ class t_rnxNavFile {
     t_irc  read(QTextStream* stream);
     double _version;
     bool   _glonass;
+    t_eph::e_type _satSys;
     QStringList _comments;
   };
- 
+
  public:
   t_rnxNavFile(const QString& fileName, e_inpOut inpOut);
   ~t_rnxNavFile();
@@ -61,7 +63,9 @@ class t_rnxNavFile {
   void   setVersion(double version) {_header._version = version;}
   bool   glonass() const {return _header._glonass;}
   QStringList comments() const {return _header._comments;}
-  void   setGlonass(bool glo) {_header._glonass = glo;} 
+  t_eph::e_type satSystem() const {return _header._satSys;}
+  void   setGlonass(bool glo) {_header._glonass = glo;}
+  void   setGnssTypeV3(t_eph::e_type sys) {_header._satSys = sys;}
   void   writeHeader(const QMap<QString, QString>* txtMap = 0);
   void   writeEph(const t_eph* eph);
 

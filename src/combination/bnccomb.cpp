@@ -27,7 +27,6 @@
 #include "bncantex.h"
 #include "t_prn.h"
 
-using namespace NEWMAT;
 
 const double sig0_offAC    = 1000.0;
 const double sig0_offACSat =  100.0;
@@ -37,6 +36,7 @@ const double sig0_clkSat   =  100.0;
 const double sigObs        =   0.05;
 
 using namespace std;
+using namespace NEWMAT;
 
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
@@ -349,9 +349,19 @@ void bncComb::slotNewClkCorrections(QList<t_clkCorr> clkCorrections) {
       continue;
     }
 
+    if (
+        clkCorr._prn.system() == 'E' ||
+        clkCorr._prn.system() == 'C' ||
+        clkCorr._prn.system() == 'J' ||
+        clkCorr._prn.system() == 'I' ||
+        clkCorr._prn.system() == 'S' )   {
+      continue;
+    }
+
     // Check Modulo Time
     // -----------------
-    if (int(clkCorr._time.gpssec()) % _cmbSampl != 0.0) {
+    int sec = int(nint(clkCorr._time.gpssec()*10));
+    if (sec % (_cmbSampl*10) != 0.0) {
       continue;
     }
 
@@ -393,7 +403,7 @@ void bncComb::slotNewClkCorrections(QList<t_clkCorr> clkCorrections) {
     t_eph* ephLast = _ephUser.ephLast(prn);
     t_eph* ephPrev = _ephUser.ephPrev(prn);
     if (ephLast == 0) {
-      emit newMessage("bncComb: eph not found "  + prn.mid(0,3).toLatin1(), true);
+      emit newMessage("bncComb: eph not found for "  + prn.mid(0,3).toLatin1(), true);
       delete newCorr;
       continue;
     }
@@ -406,8 +416,8 @@ void bncComb::slotNewClkCorrections(QList<t_clkCorr> clkCorrections) {
         switchToLastEph(ephLast, newCorr);
       }
       else {
-        emit newMessage("bncComb: eph not found "  + prn.mid(0,3).toLatin1() +
-                        QString(" %1").arg(newCorr->_iod).toLatin1(), true);
+        emit newMessage("bncComb: eph not found for "  + prn.mid(0,3).toLatin1() +
+                        QString(" with IOD %1").arg(newCorr->_iod).toLatin1(), true);
         delete newCorr;
         continue;
       }
@@ -440,11 +450,11 @@ void bncComb::switchToLastEph(t_eph* lastEph, cmbCorr* corr) {
     return;
   }
 
-  ColumnVector oldXC(4);
+  ColumnVector oldXC(6);
   ColumnVector oldVV(3);
   corr->_eph->getCrd(corr->_time, oldXC, oldVV, false);
 
-  ColumnVector newXC(4);
+  ColumnVector newXC(6);
   ColumnVector newVV(3);
   lastEph->getCrd(corr->_time, newXC, newVV, false);
 
@@ -653,7 +663,7 @@ t_irc bncComb::processEpoch_filter(QTextStream& out,
       out.setRealNumberNotation(QTextStream::FixedNotation);
       out.setRealNumberPrecision(4);
       for (int ii = 0; ii < corrs().size(); ii++) {
-    	const cmbCorr* corr = corrs()[ii];
+      const cmbCorr* corr = corrs()[ii];
         out << _resTime.datestr().c_str() << ' '
             << _resTime.timestr().c_str() << " "
             << corr->_acName << ' ' << corr->_prn.mid(0,3);
@@ -679,7 +689,7 @@ void bncComb::printResults(QTextStream& out,
     cmbCorr* corr = it.value();
     const t_eph* eph = corr->_eph;
     if (eph) {
-      ColumnVector xc(4);
+      ColumnVector xc(6);
       ColumnVector vv(3);
       eph->getCrd(_resTime, xc, vv, false);
 
@@ -731,7 +741,7 @@ void bncComb::dumpResults(const QMap<QString, cmbCorr*>& resCorr) {
     clkCorr._dotDotDClk = 0.0;
     clkCorrections.push_back(clkCorr);
 
-    ColumnVector xc(4);
+    ColumnVector xc(6);
     ColumnVector vv(3);
     corr->_eph->setClkCorr(dynamic_cast<const t_clkCorr*>(&clkCorr));
     corr->_eph->setOrbCorr(dynamic_cast<const t_orbCorr*>(&orbCorr));
@@ -873,8 +883,8 @@ t_irc bncComb::createAmat(Matrix& AA, ColumnVector& ll, DiagonalMatrix& PP,
         }
       }
     }
-//    if (_useGlonass) {
-//      for (int iGlo = 1; iGlo <= t_prn::MAXPRN_GLONASS; iGlo++) {
+//    if (_useGlonass) {// liefert schlechtere Höhenkomponente im PPP
+//      for (unsigned iGlo = 1; iGlo <= t_prn::MAXPRN_GLONASS; iGlo++) {
 //        QString prn = QString("R%1_0").arg(iGlo, 2, 10, QChar('0'));
 //        ++iCond;
 //        PP(nObs+iCond) = Ph;
@@ -1185,6 +1195,8 @@ t_irc bncComb::checkOrbits(QTextStream& out) {
 void bncComb::slotProviderIDChanged(QString mountPoint) {
   QMutexLocker locker(&_mutex);
 
+  QTextStream out(&_log, QIODevice::WriteOnly);
+
   // Find the AC Name
   // ----------------
   QString acName;
@@ -1193,6 +1205,9 @@ void bncComb::slotProviderIDChanged(QString mountPoint) {
     cmbAC* AC = icAC.next();
     if (AC->mountPoint == mountPoint) {
       acName = AC->name;
+      out << "Provider ID changed: AC " << AC->name.toLatin1().data()   << " "
+          << _resTime.datestr().c_str()    << " "
+          << _resTime.timestr().c_str()    << endl;
       break;
     }
   }

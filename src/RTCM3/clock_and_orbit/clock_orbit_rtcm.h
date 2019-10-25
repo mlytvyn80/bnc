@@ -5,7 +5,7 @@
 
         Name:           clock_orbit_rtcm.h
         Project:        RTCM3
-        Version:        $Id: clock_orbit_rtcm.h 8029 2016-09-01 19:18:10Z stuerze $
+        Version:        $Id: clock_orbit_rtcm.h 8822 2019-10-01 09:24:09Z stuerze $
         Authors:        Dirk Stöcker
         Description:    state space approach for RTCM3
 */
@@ -101,14 +101,14 @@ enum VTECType {
 /* if some systems aren't supported at all, change the following numbers to zero
 for these systems to save space */
 enum COR_CONSTANTS {
-  CLOCKORBIT_BUFFERSIZE=2048,
+  CLOCKORBIT_BUFFERSIZE=8192,
   CLOCKORBIT_NUMGPS=32,
   CLOCKORBIT_NUMGLONASS=26,
   CLOCKORBIT_NUMGALILEO=36,
   CLOCKORBIT_NUMQZSS=10,
   CLOCKORBIT_NUMSBAS=38,
-  CLOCKORBIT_NUMBDS=37,
-  CLOCKORBIT_NUMBIAS=72,
+  CLOCKORBIT_NUMBDS=65,
+  CLOCKORBIT_NUMBIAS=100,
   CLOCKORBIT_NUMIONOLAYERS=4,
   CLOCKORBIT_MAXIONOORDER=16,
   CLOCKORBIT_MAXIONODEGREE=16
@@ -143,17 +143,17 @@ enum CodeType {
   CODETYPEGPS_L1_CA          = 0,
   CODETYPEGPS_L1_P           = 1,
   CODETYPEGPS_L1_Z           = 2,
-  /*CODETYPEGPS_L1_Y         = 3,
-  CODETYPEGPS_L1_M           = 4,*/
+  CODETYPEGPS_L1_Y         = 3,
+  CODETYPEGPS_L1_M           = 4,
   CODETYPEGPS_L2_CA          = 5,
   CODETYPEGPS_SEMI_CODELESS  = 6,
-  CODETYPEGPS_L2_CM          = 7,
-  CODETYPEGPS_L2_CL          = 8,
-  CODETYPEGPS_L2_CML         = 9,
+  CODETYPEGPS_L2C_M          = 7,
+  CODETYPEGPS_L2C_L          = 8,
+  CODETYPEGPS_L2C_ML         = 9,
   CODETYPEGPS_L2_P           = 10,
   CODETYPEGPS_L2_Z           = 11,
-  /*CODETYPEGPS_L2_Y         = 12,
-  CODETYPEGPS_L2_M           = 13,*/
+  CODETYPEGPS_L2_Y           = 12,
+  CODETYPEGPS_L2_M           = 13,
   CODETYPEGPS_L5_I           = 14,
   CODETYPEGPS_L5_Q           = 15,
   CODETYPEGPS_L5_IQ          = 16,
@@ -165,9 +165,16 @@ enum CodeType {
   CODETYPEGLONASS_L1_P       = 1,
   CODETYPEGLONASS_L2_CA      = 2,
   CODETYPEGLONASS_L2_P       = 3,
-  CODETYPEGLONASS_L3_I       = 4,
-  CODETYPEGLONASS_L3_Q       = 5,
-  CODETYPEGLONASS_L3_IQ      = 6,  
+  CODETYPEGLONASS_L1a_OCd    = 4,
+  CODETYPEGLONASS_L1a_OCp    = 5,
+  CODETYPEGLONASS_L1a_OCdp   = 6,
+  CODETYPEGLONASS_L2a_CSI    = 7,
+  CODETYPEGLONASS_L2a_OCp    = 8,
+  CODETYPEGLONASS_L2a_CSIOCp = 9,
+  CODETYPEGLONASS_L3_I       = 10,
+  CODETYPEGLONASS_L3_Q       = 11,
+  CODETYPEGLONASS_L3_IQ      = 12,
+
 
   CODETYPEGALILEO_E1_A       = 0,
   CODETYPEGALILEO_E1_B       = 1,
@@ -198,10 +205,16 @@ enum CodeType {
   CODETYPEQZSS_L5_I          = 6,
   CODETYPEQZSS_L5_Q          = 7,
   CODETYPEQZSS_L5_IQ         = 8,
-  CODETYPEQZSS_LEX_S         = 9,
-  CODETYPEQZSS_LEX_L         = 10,
-  CODETYPEQZSS_LEX_SL        = 11,
+  CODETYPEQZSS_L6_D          = 9,
+  CODETYPEQZSS_L6_P          = 10,
+  CODETYPEQZSS_L6_DP         = 11,
   CODETYPEQZSS_L1C_DP        = 12,
+  CODETYPEQZSS_L1_S          = 13,
+  CODETYPEQZSS_L5_D          = 14,
+  CODETYPEQZSS_L5_P          = 15,
+  CODETYPEQZSS_L5_DP         = 16,
+  CODETYPEQZSS_L6_E          = 17,
+  CODETYPEQZSS_L6_DE         = 18,
 
   CODETYPE_SBAS_L1_CA        = 0,
   CODETYPE_SBAS_L5_I         = 1,
@@ -217,6 +230,15 @@ enum CodeType {
   CODETYPE_BDS_B2_I          = 6,
   CODETYPE_BDS_B2_Q          = 7,
   CODETYPE_BDS_B2_IQ         = 8,
+  CODETYPE_BDS_B1a_D         = 9,
+  CODETYPE_BDS_B1a_P         = 10,
+  CODETYPE_BDS_B1a_DP        = 11,
+  CODETYPE_BDS_B2a_D         = 12,
+  CODETYPE_BDS_B2a_P         = 13,
+  CODETYPE_BDS_B2a_DP        = 14,
+
+  CODETYPE_IRNSS_S_SPS       = 8,
+  CODETYPE_IRNSS_L5_SPS      = 22
 };
 
 #define SSR_MAXURA 5.5 /* > 5466.5mm in meter */

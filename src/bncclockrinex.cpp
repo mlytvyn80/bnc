@@ -40,17 +40,40 @@ bncClockRinex::~bncClockRinex() {
 // Write One Epoch
 ////////////////////////////////////////////////////////////////////////////
 t_irc bncClockRinex::write(int GPSweek, double GPSweeks, const QString& prn,
-                           double sp3Clk) {
+                           double clkRnx, double clkRnxRate, double clkRnxAcc,
+                           double clkRnxSig, double clkRnxRateSig, double clkRnxAccSig) {
 
   if (reopen(GPSweek, GPSweeks) == success) {
 
       QDateTime datTim = dateAndTimeFromGPSweek(GPSweek, GPSweeks);
       double sec = fmod(GPSweeks, 60.0);
 
+      int numValues = 1;
+      if (clkRnxSig && clkRnxRate && clkRnxRateSig) {
+        numValues += 3;
+      }
+      if (clkRnxAcc && clkRnxAccSig) {
+        numValues += 2;
+      }
+
       _out << "AS " << prn.toLatin1().data()
            << datTim.toString("  yyyy MM dd hh mm").toLatin1().data()
            << fixed      << setw(10) << setprecision(6)  << sec
-           << "  1   "   << fortranFormat(sp3Clk, 19, 12).toLatin1().data() << endl;
+           << "  " << numValues << "   "
+           << fortranFormat(clkRnx, 19, 12).toLatin1().data();
+
+      if (numValues >=2) {
+        _out << " " << fortranFormat(clkRnxSig, 19, 12).toLatin1().data() << endl;
+      }
+      if (numValues == 4) {
+        _out << fortranFormat(clkRnxRate, 19, 12).toLatin1().data() << " ";
+        _out << fortranFormat(clkRnxRateSig, 19, 12).toLatin1().data() << " ";
+      }
+      if (numValues == 6) {
+        _out << fortranFormat(clkRnxAcc, 19, 12).toLatin1().data() << " ";
+        _out << " " << fortranFormat(clkRnxAccSig, 19, 12).toLatin1().data();
+      }
+      _out << endl;
 
     return success;
   }
@@ -92,7 +115,7 @@ void bncClockRinex::writeHeader(const QDateTime& datTim) {
   _out << "R16 R17 R18 R19 R20 R21 R22 R23 R24                         "
        << "PRN LIST" << endl;
 
-  _out << "     0    IGS08                                             "
+  _out << "     0    IGS14                                             "
        << "# OF SOLN STA / TRF" << endl;
 
   _out << "                                                            "

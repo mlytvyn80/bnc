@@ -30,21 +30,20 @@
 #include "rnxnavfile.h"
 #include "ephemeris.h"
 #include "satObs.h"
-
-class t_polarPoint;
+#include "polarplot.h"
 
 class t_plotData {
  public:
-  QVector<double> _mjdX24;
-  QVector<double> _numSat;
-  QVector<double> _PDOP;
-  QVector<double> _L1ok;
-  QVector<double> _L2ok;
-  QVector<double> _L1slip;
-  QVector<double> _L2slip;
-  QVector<double> _L1gap;
-  QVector<double> _L2gap;
-  QVector<double> _eleDeg;
+  struct t_hlpStatus {
+    QVector<double> _ok;
+    QVector<double> _slip;
+    QVector<double> _gap;
+  };
+  QVector<double>         _mjdX24;
+  QVector<double>         _numSat;
+  QVector<double>         _PDOP;
+  QVector<double>         _eleDeg;
+  QMap<char, t_hlpStatus> _status;
 };
 
 class t_reqcAnalyze : public QThread {
@@ -57,10 +56,26 @@ Q_OBJECT
  protected:
   ~t_reqcAnalyze();
 
+  class t_skyPlotData {
+   public:
+    t_skyPlotData() {
+      _sys  = ' ';
+      _data = new QVector<t_polarPoint*>;
+    }
+    t_skyPlotData(char sys) {
+      _sys  = sys;
+      _data = new QVector<t_polarPoint*>;
+    }
+    ~t_skyPlotData() {}
+    char                    _sys;
+    QString                 _title;
+    QVector<t_polarPoint*>* _data;
+  };
+
  signals:
   void finished();
-  void dspSkyPlot(const QString&, const QString&, QVector<t_polarPoint*>*,
-                  const QString&, QVector<t_polarPoint*>*, const QByteArray&, double);
+  void dspSkyPlot(const QString&, QVector<t_skyPlotData> skyPlotData,
+                  const QByteArray&, double);
   void dspAvailPlot(const QString&, const QByteArray&);
 
  private:
@@ -157,16 +172,15 @@ Q_OBJECT
   };
 
  private slots:
-  void   slotDspSkyPlot(const QString& fileName, const QString& title1,
-                    QVector<t_polarPoint*>* data1, const QString& title2,
-                    QVector<t_polarPoint*>* data2, const QByteArray& scaleTitle, double maxValue);
+  void   slotDspSkyPlot(const QString& fileName, QVector<t_skyPlotData> skyPlotData,
+                        const QByteArray& scaleTitle, double maxValue);
 
   void   slotDspAvailPlot(const QString& fileName, const QByteArray& title);
 
  private:
   void   checkEphemerides();
 
-  void   analyzePlotSignals(QMap<char, QVector<QString> >& signalTypes);
+  void   analyzePlotSignals();
 
   void   analyzeFile(t_rnxObsFile* obsFile);
 
@@ -186,20 +200,22 @@ Q_OBJECT
 
   void   printReport(const t_rnxObsFile* obsFile);
 
-  QString                       _logFileName;
-  QFile*                        _logFile;
-  QTextStream*                  _log;
-  QStringList                   _obsFileNames;
-  QVector<t_rnxObsFile*>        _rnxObsFiles;
-  QStringList                   _navFileNames;
-  QString                       _reqcPlotSignals;
-  QMap<char, QVector<QString> > _signalTypes;
-  QMap<t_prn, int>              _numExpObs;
-  QVector<char>                 _navFileIncomplete;
-  QStringList                   _defaultSignalTypes;
-  QVector<t_eph*>               _ephs;
-  t_rnxObsFile::t_rnxEpo*       _currEpo;
-  t_qcFile                      _qcFile;
+  static bool mpLessThan(const t_polarPoint* p1, const t_polarPoint* p2);
+    
+  QString                    _logFileName;
+  QFile*                     _logFile;
+  QTextStream*               _log;
+  QStringList                _obsFileNames;
+  QVector<t_rnxObsFile*>     _rnxObsFiles;
+  QStringList                _navFileNames;
+  QString                    _reqcPlotSignals;
+  QMap<char, QVector<char> > _signalTypes;
+  QMap<t_prn, int>           _numExpObs;
+  QVector<char>              _navFileIncomplete;
+  QStringList                _defaultSignalTypes;
+  QVector<t_eph*>            _ephs;
+  t_rnxObsFile::t_rnxEpo*    _currEpo;
+  t_qcFile                   _qcFile;
 };
 
 #endif

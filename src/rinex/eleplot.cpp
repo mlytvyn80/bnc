@@ -22,7 +22,21 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
-
+/* -------------------------------------------------------------------------
+ * BKG NTRIP Client
+ * -------------------------------------------------------------------------
+ *
+ * Class:      t_elePlot
+ *
+ * Purpose:    Plot satellite elevations
+ *
+ * Author:     L. Mervart
+ *
+ * Created:    08-Sep-2012
+ *
+ * Changes:    
+ *
+ * -----------------------------------------------------------------------*/
 
 #include <qwt_scale_draw.h>
 #include <qwt_text.h>
@@ -50,7 +64,7 @@ t_elePlot::t_elePlot(QWidget* parent, const QMap<t_prn, t_plotData>& plotDataMap
 : QwtPlot(parent) {
 
   setCanvasBackground(QColor(Qt::white));
-  //canvas()->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
+  ((QwtPlotCanvas *)canvas())->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
 
   // Axes
   // ----
@@ -100,7 +114,11 @@ QwtPlotCurve* t_elePlot::addCurve(const QString& name,
                                     const QVector<double>& xData,
                                     const QVector<double>& yData) {
   QwtPlotCurve* curve = new QwtPlotCurve(name);
-  curve->setSymbol(new QwtSymbol(symbol.style()));
+  QwtSymbol *s = new QwtSymbol(symbol.style());
+  s->setSize(symbol.size());
+  s->setBrush(symbol.brush());
+  s->setPen(symbol.pen());
+  curve->setSymbol(s);
   curve->setStyle(QwtPlotCurve::NoCurve);
   curve->setXAxis(QwtPlot::xBottom);
   curve->setYAxis(QwtPlot::yLeft);

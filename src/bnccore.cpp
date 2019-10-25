@@ -208,6 +208,9 @@ t_irc t_bncCore::checkPrintEph(t_eph* eph) {
     messagePrivate("OUTDATED EPHEMERIS\n" + eph->toString(3.0).toLatin1());
     return failure;
   }
+  else if (eph->checkState() == t_eph::unhealthy) {
+    messagePrivate("UNHEALTHY EPHEMERIS\n" + eph->toString(3.0).toLatin1());
+  }
   printEphHeader();
   printEph(*eph, (ircPut == success));
   return success;
@@ -258,7 +261,7 @@ void t_bncCore::slotNewBDSEph(t_ephBDS eph) {
 void t_bncCore::printEphHeader() {
 
   bncSettings settings;
-    QStringList comments;
+  QStringList comments;
 
   QListIterator<QString> it(settings.value("mountPoints").toStringList());
   while (it.hasNext()) {
@@ -268,7 +271,7 @@ void t_bncCore::printEphHeader() {
     QUrl url(hlp[0]);
     QString decoder = hlp[1];
     comments.append("Source: " + decoder +
-                    " " + url.toAce(url.host()) +
+                    " " + QUrl::toAce(url.host()) +
                     "/" + url.path().mid(1).toLatin1());
   }
 
@@ -301,29 +304,23 @@ void t_bncCore::printEphHeader() {
 
     QString ephFileNameGPS = _ephPath + "BRDC";
 
-    bool ephV3filenames = settings.value("ephV3filenames").toBool();
+    bool ephV3 = (_rinexVers == 3)? true : false;
 
     QString hlpStr = bncRinex::nextEpochStr(datTim,
-                         settings.value("ephIntr").toString(), ephV3filenames);
+                         settings.value("ephIntr").toString(), ephV3);
 
     if (_rinexVers == 3) {
-      if (ephV3filenames) {
-        QString country = "WRD"; // WORLD
-        QString monNum = "0";
-        QString recNum = "0";
-        ephFileNameGPS += QString("%1").arg(monNum, 1, 10) +
-                          QString("%1").arg(recNum, 1, 10) +
-                          country +
-                          "_S_" +     // stream
-                          QString("%1").arg(datTim.date().year()) +
-                          QString("%1").arg(datTim.date().dayOfYear(), 3, 10, QChar('0')) +
-                          hlpStr +   // HM_period
-                          "_MN.rnx"; // mixed BRDC
-      }
-      else { // RNX v3 with old filenames
-        ephFileNameGPS +=  QString("%1").arg(datTim.date().dayOfYear(), 3, 10, QChar('0')) +
-                           hlpStr + datTim.toString(".yyP");
-      }
+      QString country = "WRD"; // WORLD
+      QString monNum = "0";
+      QString recNum = "0";
+      ephFileNameGPS += QString("%1").arg(monNum, 1, 10) +
+                        QString("%1").arg(recNum, 1, 10) +
+                        country +
+                        "_S_" +     // stream
+                        QString("%1").arg(datTim.date().year()) +
+                        QString("%1").arg(datTim.date().dayOfYear(), 3, 10, QChar('0')) +
+                        hlpStr +   // HM_period
+                        "_MN.rnx"; // mixed BRDC
     }
     else { // RNX v2.11
       ephFileNameGPS += QString("%1").arg(datTim.date().dayOfYear(), 3, 10, QChar('0')) +
@@ -387,7 +384,7 @@ void t_bncCore::printEphHeader() {
         QString line;
         line.sprintf(
           "%9.2f%11sN: GNSS NAV DATA    M: Mixed%12sRINEX VERSION / TYPE\n",
-          t_rnxNavFile::defaultRnxNavVersion3, "", "");
+          defaultRnxNavVersion3, "", "");
         *_ephStreamGPS << line;
 
         QString hlp = currentDateAndTimeGPS().toString("yyyyMMdd hhmmss UTC").leftJustified(20, ' ', true);
@@ -400,7 +397,7 @@ void t_bncCore::printEphHeader() {
         while (it.hasNext()) {
           *_ephStreamGPS << it.next().trimmed().left(60).leftJustified(60) << "COMMENT\n";
         }
-        
+
         line.sprintf("%60sEND OF HEADER\n", "");
         *_ephStreamGPS << line;
 
@@ -414,7 +411,7 @@ void t_bncCore::printEphHeader() {
       if (! (appendFlagGPS & QIODevice::Append)) {
         QString line;
         line.sprintf("%9.2f%11sN: GPS NAV DATA%25sRINEX VERSION / TYPE\n",
-                     t_rnxNavFile::defaultRnxNavVersion2, "", "");
+                     defaultRnxNavVersion2, "", "");
         *_ephStreamGPS << line;
 
         QString hlp = currentDateAndTimeGPS().date().toString("dd-MMM-yyyy").leftJustified(20, ' ', true);
@@ -427,7 +424,7 @@ void t_bncCore::printEphHeader() {
         while (it.hasNext()) {
           *_ephStreamGPS << it.next().trimmed().left(60).leftJustified(60) << "COMMENT\n";
         }
-        
+
         line.sprintf("%60sEND OF HEADER\n", "");
         *_ephStreamGPS << line;
 
@@ -436,7 +433,7 @@ void t_bncCore::printEphHeader() {
       if (! (appendFlagGlonass & QIODevice::Append)) {
         QString line;
         line.sprintf("%9.2f%11sG: GLONASS NAV DATA%21sRINEX VERSION / TYPE\n",
-                     t_rnxNavFile::defaultRnxNavVersion2, "", "");
+                     defaultRnxNavVersion2, "", "");
         *_ephStreamGlonass << line;
 
         QString hlp = currentDateAndTimeGPS().date().toString("dd-MMM-yyyy").leftJustified(20, ' ', true);
@@ -463,8 +460,8 @@ void t_bncCore::printEphHeader() {
 ////////////////////////////////////////////////////////////////////////////
 void t_bncCore::printEph(const t_eph& eph, bool printFile) {
 
-  QString strV2 = eph.toString(t_rnxNavFile::defaultRnxNavVersion2);
-  QString strV3 = eph.toString(t_rnxObsHeader::defaultRnxObsVersion3);
+  QString strV2 = eph.toString(defaultRnxNavVersion2);
+  QString strV3 = eph.toString(defaultRnxObsVersion3);
 
   if     (_rinexVers == 2 && eph.type() == t_eph::GLONASS) {
     printOutputEph(printFile, _ephStreamGlonass, strV2, strV3);

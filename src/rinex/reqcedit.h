@@ -70,7 +70,7 @@ Q_OBJECT
   QStringList            _navFileNames;
   QString                _outNavFileName;
   double                 _rnxVersion;
-  int                    _samplingRate;
+  double                 _samplingRate;
   bncTime                _begTime;
   bncTime                _endTime;
   QMap<QString, QMap<int, int> > _lli;

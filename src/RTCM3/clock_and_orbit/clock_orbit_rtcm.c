@@ -2,7 +2,7 @@
 
         Name:           clock_orbit_rtcm.c
         Project:        RTCM3
-        Version:        $Id: clock_orbit_rtcm.c 7777 2016-02-16 08:57:27Z stuerze $
+        Version:        $Id: clock_orbit_rtcm.c 8410 2018-07-06 09:06:59Z stuerze $
         Authors:        Dirk Stöcker
         Description:    state space approach for RTCM3
 */
@@ -100,12 +100,12 @@ modified variables are:
 #define T_GLONASS_SATELLITE_ID(a)        ADDBITS(5, a)
 
 #define T_GPS_IODE(a)                    ADDBITS(8, a)      /* DF071 */
-#define T_GLONASS_IOD(a)                 ADDBITS(8, a)      /* DF237 */
+#define T_GLONASS_IOD(a)                 ADDBITS(8, a)      /* DF239 */
 #define T_GALILEO_IOD(a)                 ADDBITS(10, a)     /* DF459 */
 #define T_SBAS_T0MOD(a)                  ADDBITS(9, (a/16)) /* DF468 */
 #define T_SBAS_IODCRC(a)                 ADDBITS(24, a)     /* DF469 */
 #define T_BDS_TOEMOD(a)                  ADDBITS(10, (a/8)) /* DF470 */
-#define T_BDS_IODCRC(a)                  ADDBITS(24, a)     /* DF471 */
+#define T_BDS_IOD(a)                     ADDBITS(8, a)      /* DF471 */
 
 #define T_DELTA_RADIAL(a)                SCALEADDBITS(22,    10000.0, a)
 #define T_DELTA_ALONG_TRACK(a)           SCALEADDBITS(20,     2500.0, a)
@@ -264,7 +264,7 @@ int moremessagesfollow, char *buffer, size_t size)
         case CLOCKORBIT_SATBDS:
           T_GPS_SATELLITE_ID(co->Sat[i].ID)
           T_BDS_TOEMOD(co->Sat[i].toe)
-          T_BDS_IODCRC(co->Sat[i].IOD)
+          T_BDS_IOD(co->Sat[i].IOD)
           break;
         }
         T_DELTA_RADIAL(co->Sat[i].Orbit.DeltaRadial)
@@ -392,7 +392,7 @@ int moremessagesfollow, char *buffer, size_t size)
           case CLOCKORBIT_SATBDS:
             T_GPS_SATELLITE_ID(co->Sat[i].ID)
             T_BDS_TOEMOD(co->Sat[i].toe)
-            T_BDS_IODCRC(co->Sat[i].IOD)
+            T_BDS_IOD(co->Sat[i].IOD)
             break;
           }
           T_DELTA_RADIAL(co->Sat[i].Orbit.DeltaRadial)
@@ -731,7 +731,7 @@ size_t size)
 #define G_SBAS_T0MOD(a)                  GETBITSFACTOR(a, 9, 16) /* DF468 */
 #define G_SBAS_IODCRC(a)                 GETBITS(a, 24)          /* DF469 */
 #define G_BDS_TOEMOD(a)                  GETBITSFACTOR(a, 10, 8) /* DF470 */
-#define G_BDS_IODCRC(a)                  GETBITS(a, 24)          /* DF471 */
+#define G_BDS_IOD(a)                     GETBITS(a, 8)           /* DF471 */
 
 /* defined values */
 #define G_DELTA_RADIAL(a)                GETFLOATSIGN(a, 22, 1/10000.0)
@@ -992,7 +992,7 @@ fprintf(stderr, "type %d size %d\n",type,sizeofrtcmblock);
             break;
           case CLOCKORBIT_SATBDS:
             G_BDS_TOEMOD(co->Sat[pos].toe)
-            G_BDS_IODCRC(co->Sat[pos].IOD)
+            G_BDS_IOD(co->Sat[pos].IOD)
             break;
           }
           G_DELTA_RADIAL(co->Sat[pos].Orbit.DeltaRadial)
@@ -1129,7 +1129,7 @@ fprintf(stderr, "type %d size %d\n",type,sizeofrtcmblock);
             break;
           case CLOCKORBIT_SATBDS:
             G_BDS_TOEMOD(co->Sat[pos].toe)
-            G_BDS_IODCRC(co->Sat[pos].IOD)
+            G_BDS_IOD(co->Sat[pos].IOD)
             break;
           }
           G_DELTA_RADIAL(co->Sat[pos].Orbit.DeltaRadial)

@@ -1,7 +1,7 @@
 #ifndef BNCEPHUPLOADCASTER_H
 #define BNCEPHUPLOADCASTER_H
 
-
+#include <newmat/newmat.h>
 #include "bncuploadcaster.h"
 #include "bncephuser.h"
 
@@ -15,7 +15,7 @@ class bncEphUploadCaster : public bncEphUser {
  protected:
   virtual void ephBufferChanged();
  private:
-  bncUploadCaster* _ephUploadCaster;
+  QVector<bncUploadCaster*> _casters;
 };
 
 #endif

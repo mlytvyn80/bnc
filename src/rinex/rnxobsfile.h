@@ -37,15 +37,14 @@
 #include "t_prn.h"
 #include "satObs.h"
 
-class t_rnxObsHeader
-{
+#define defaultRnxObsVersion2 2.11
+#define defaultRnxObsVersion3 3.04
+
+class t_rnxObsHeader {
 
  friend class t_rnxObsFile;
 
  public:
-  static constexpr double  defaultRnxObsVersion2 = 2.11;
-  static constexpr double  defaultRnxObsVersion3 = 3.03;
-  static const QString defaultSystems;
 
   t_rnxObsHeader();
   ~t_rnxObsHeader();
@@ -123,6 +122,7 @@ class t_rnxObsFile {
    public:
     t_prn                   prn;
     QMap<QString, t_rnxObs> obs;
+    static bool prnSort(const t_rnxSat rnxSat1, const t_rnxSat rnxSat2) {return rnxSat1.prn < rnxSat2.prn;}
   };
 
   class t_rnxEpo {
@@ -218,9 +218,18 @@ class t_rnxObsFile {
     for (unsigned ii = 0; ii < epo->rnxSat.size(); ii++) {
       const t_rnxSat& rnxSat = epo->rnxSat[ii];
       if (header._obsTypes[rnxSat.prn.system()].size() > 0) {
+        if (header.version() < 3.0) { // exclude new GNSS such as BDS, QZSS, IRNSS, etc.
+            if (rnxSat.prn.system() != 'G' && rnxSat.prn.system() != 'R' &&
+                rnxSat.prn.system() != 'E' && rnxSat.prn.system() != 'S' &&
+                rnxSat.prn.system() != 'I') {
+              continue;
+            }
+        }
         epoLocal.rnxSat.push_back(rnxSat);
       }
     }
+    std::stable_sort(epoLocal.rnxSat.begin(), epoLocal.rnxSat.end(), t_rnxSat::prnSort);
+
     if (header.version() >= 3.0) {
       writeEpochV3(stream, header, &epoLocal);
     }

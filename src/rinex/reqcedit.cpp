@@ -22,7 +22,21 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
-
+/* -------------------------------------------------------------------------
+ * BKG NTRIP Client
+ * -------------------------------------------------------------------------
+ *
+ * Class:      t_reqcEdit
+ *
+ * Purpose:    Edit/Concatenate RINEX Files
+ *
+ * Author:     L. Mervart
+ *
+ * Created:    11-Apr-2012
+ *
+ * Changes:
+ *
+ * -----------------------------------------------------------------------*/
 
 #include <iostream>
 #include "reqcedit.h"
@@ -33,7 +47,6 @@
 #include "rnxnavfile.h"
 
 using namespace std;
-using namespace NEWMAT;
 
 // Constructor
 ////////////////////////////////////////////////////////////////////////////
@@ -50,12 +63,12 @@ t_reqcEdit::t_reqcEdit(QObject* parent) : QThread(parent) {
   _outNavFileName = settings.value("reqcOutNavFile").toString();
   int version     = settings.value("reqcRnxVersion").toInt();
   if (version < 3) {
-    _rnxVersion = t_rnxObsHeader::defaultRnxObsVersion2;
+    _rnxVersion = defaultRnxObsVersion2;
   }
   else {
-    _rnxVersion = t_rnxObsHeader::defaultRnxObsVersion3;
+    _rnxVersion = defaultRnxObsVersion3;
   }
-  _samplingRate   = settings.value("reqcSampling").toInt();
+  _samplingRate   = settings.value("reqcSampling").toString().split("sec").first().toDouble();
   _begTime        = bncTime(settings.value("reqcStartDateTime").toString().toLatin1().data());
   _endTime        = bncTime(settings.value("reqcEndDateTime").toString().toLatin1().data());
 
@@ -104,7 +117,7 @@ void t_reqcEdit::run() {
     *_log << QByteArray("RINEX Version").leftJustified(15) << ": "
           << _rnxVersion << endl;
     *_log << QByteArray("Sampling").leftJustified(15) << ": "
-          << _samplingRate << endl;
+          << _samplingRate << " sec" << endl;
     *_log << QByteArray("Start time").leftJustified(15) << ": "
           << _begTime.datestr().c_str() << ' '
           << _begTime.timestr(0).c_str() << endl;
@@ -142,6 +155,7 @@ void t_reqcEdit::run() {
     emit finished();
     deleteLater();
   }
+
 }
 
 // Initialize input observation files, sort them according to start time
@@ -322,8 +336,8 @@ void t_reqcEdit::editObservations() {
           break;
         }
 
-        if (_samplingRate == 0 ||
-            fmod(round(epo->tt.gpssec()), _samplingRate) == 0) {
+        int sec = int(nint(epo->tt.gpssec()*10));
+        if (sec % (int(_samplingRate)*10) == 0) {
           applyLLI(obsFile, epo);
           outObsFile.writeEpoch(epo);
         }
@@ -387,7 +401,7 @@ void t_reqcEdit::editRnxObsHeader(t_rnxObsFile& obsFile) {
   }
 
 
-  const ColumnVector& obsFileAntNEU = obsFile.antNEU();
+  const NEWMAT::ColumnVector& obsFileAntNEU = obsFile.antNEU();
   QString oldAntennadN = settings.value("reqcOldAntennadN").toString();
   QString newAntennadN = settings.value("reqcNewAntennadN").toString();
   if(!newAntennadN.isEmpty()) {
@@ -507,7 +521,9 @@ void t_reqcEdit::readEphemerides(const QStringList& navFileNames,
       appendEphemerides(fileName, ephs);
     }
   }
+  // TODO: enable user decision 
   qStableSort(ephs.begin(), ephs.end(), t_eph::earlierTime);
+  //qStableSort(ephs.begin(), ephs.end(), t_eph::prnSort); 
 }
 
 //
@@ -519,7 +535,6 @@ void t_reqcEdit::editEphemerides() {
   if (_navFileNames.isEmpty() || _outNavFileName.isEmpty()) {
     return;
   }
-  
   // Concatenate all comments
   // ------------------------
   QStringList comments;
@@ -538,7 +553,7 @@ void t_reqcEdit::editEphemerides() {
     }
   }
   comments.removeDuplicates();
-  
+
   // Read Ephemerides
   // ----------------
   t_reqcEdit::readEphemerides(_navFileNames, _ephs);
@@ -547,13 +562,35 @@ void t_reqcEdit::editEphemerides() {
   // -----------------------
   bool haveGPS     = false;
   bool haveGlonass = false;
+  QMap<t_eph::e_type, bool> haveGnss;
   for (int ii = 0; ii < _ephs.size(); ii++) {
     const t_eph* eph = _ephs[ii];
-    if      (eph->type() == t_eph::GPS) {
-      haveGPS = true;
-    }
-    else if (eph->type() == t_eph::GLONASS) {
-      haveGlonass = true;
+    switch (eph->type()) {
+      case t_eph::GPS:
+        haveGPS = true;
+        haveGnss[t_eph::GPS] = true;
+        break;
+      case t_eph::GLONASS:
+        haveGlonass = true;
+        haveGnss[t_eph::GLONASS] = true;
+        break;
+      case t_eph::Galileo:
+        haveGnss[t_eph::Galileo] = true;
+        break;
+      case t_eph::BDS:
+        haveGnss[t_eph::BDS] = true;
+        break;
+      case t_eph::QZSS:
+        haveGnss[t_eph::QZSS] = true;
+        break;
+      case t_eph::IRNSS:
+        haveGnss[t_eph::IRNSS] = true;
+        break;
+      case t_eph::SBAS:
+        haveGnss[t_eph::SBAS] = true;
+        break;
+      default:
+        haveGnss[t_eph::unknown] = true;
     }
   }
 
@@ -564,10 +601,19 @@ void t_reqcEdit::editEphemerides() {
   outNavFile.setGlonass(haveGlonass);
 
   if ( (haveGPS && haveGlonass) || _rnxVersion >= 3.0) {
-    outNavFile.setVersion(t_rnxNavFile::defaultRnxNavVersion3);
+    outNavFile.setVersion(defaultRnxNavVersion3);
   }
   else {
-    outNavFile.setVersion(t_rnxNavFile::defaultRnxNavVersion2);
+    outNavFile.setVersion(defaultRnxNavVersion2);
+  }
+
+  if (outNavFile.version() > 3.0) {
+    if (haveGnss.size() > 1) {
+      outNavFile.setGnssTypeV3(t_eph::unknown);
+    }
+    else if (haveGnss.size() == 1){
+      outNavFile.setGnssTypeV3(haveGnss.keys().first());
+    }
   }
 
   QMap<QString, QString> txtMap;
@@ -597,6 +643,9 @@ void t_reqcEdit::editEphemerides() {
     if (endTime.valid() && eph->TOC() > endTime) {
       break;
     }
+    if (eph->checkState() == t_eph::bad) {
+      continue;
+    }
     outNavFile.writeEph(eph);
   }
 }
@@ -605,7 +654,6 @@ void t_reqcEdit::editEphemerides() {
 ////////////////////////////////////////////////////////////////////////////
 void t_reqcEdit::appendEphemerides(const QString& fileName,
                                    QVector<t_eph*>& ephs) {
-
   t_rnxNavFile rnxNavFile(fileName, t_rnxNavFile::input);
   for (unsigned ii = 0; ii < rnxNavFile.ephs().size(); ii++) {
     t_eph* eph   = rnxNavFile.ephs()[ii];
@@ -636,6 +684,9 @@ void t_reqcEdit::appendEphemerides(const QString& fileName,
       }
       else if (eph->type() == t_eph::BDS) {
         ephs.append(new t_ephBDS(*dynamic_cast<t_ephBDS*>(eph)));
+      }
+      else if (eph->type() == t_eph::IRNSS) {
+        ephs.append(new t_ephGPS(*dynamic_cast<t_ephGPS*>(eph)));
       }
     }
   }
