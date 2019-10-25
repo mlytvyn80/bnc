@@ -1,0 +1,10 @@
+Makefile
+src/Makefile
+bnc
+build
+bnc.pro.user
+.qmake.stash
+src/.moc/*
+src/.obj/*
+src/qrc_bnc.cpp
+

@@ -6,6 +6,8 @@ CONFIG += release c++14
 
 QT += printsupport
 
+QMAKE_CFLAGS_ISYSTEM=-I
+
 include(src.pri)
 
 HEADERS +=             app.h \
